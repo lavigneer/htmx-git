@@ -8,6 +8,7 @@ use axum::{
     routing::get,
     Router,
 };
+use tower_http::services::ServeDir;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[derive(Template)]
@@ -30,7 +31,14 @@ async fn main() {
         )
         .with(tracing_subscriber::fmt::layer())
         .init();
-    let app = Router::new().route("/greet/:name", get(greet));
+
+    let assets_path = std::env::current_dir().unwrap();
+    let app = Router::new()
+        .route("/greet/:name", get(greet))
+        .nest_service(
+            "/assets",
+            ServeDir::new(format!("{}/assets", assets_path.to_str().unwrap())),
+        );
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
     axum::Server::bind(&addr)
