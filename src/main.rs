@@ -1,24 +1,37 @@
-use std::net::SocketAddr;
+use std::sync::Arc;
+use std::{net::SocketAddr, sync::Mutex};
 
 use askama::Template;
 use axum::{
-    extract,
+    extract::State,
     http::StatusCode,
     response::{Html, IntoResponse, Response},
     routing::get,
     Router,
 };
+use git2::Repository;
 use tower_http::services::ServeDir;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-#[derive(Template)]
-#[template(path = "hello.html")]
-struct HelloTemplate {
-    name: String,
+struct AppState {
+    repo: Repository,
 }
 
-async fn greet(extract::Path(name): extract::Path<String>) -> impl IntoResponse {
-    let template = HelloTemplate { name };
+#[derive(Template)]
+#[template(path = "index.html")]
+struct IndexTemplate {
+    branches: Vec<String>,
+}
+
+async fn index(State(state): State<Arc<Mutex<AppState>>>) -> impl IntoResponse {
+    let repo = &state.lock().unwrap().repo;
+    let branches = repo
+        .branches(None)
+        .unwrap()
+        .into_iter()
+        .map(|b| b.unwrap().0.name().unwrap().unwrap().to_owned())
+        .collect::<Vec<String>>();
+    let template = IndexTemplate { branches };
     HtmlTemplate(template)
 }
 
@@ -32,9 +45,13 @@ async fn main() {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
+    let repo = Repository::open("/home/elavigne/workspace/htmx-git-client/test-repo").unwrap();
+    let shared_state = Arc::new(Mutex::new(AppState { repo }));
+
     let assets_path = std::env::current_dir().unwrap();
     let app = Router::new()
-        .route("/greet/:name", get(greet))
+        .route("/", get(index))
+        .with_state(shared_state)
         .nest_service(
             "/assets",
             ServeDir::new(format!("{}/assets", assets_path.to_str().unwrap())),

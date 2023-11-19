@@ -1,0 +1,10 @@
+<!-- prettier-ignore -->
+{% extends "base.html" %}
+
+{% block content %} 
+<ul>
+{% for branch in branches %}
+<li>{{branch}}</li>
+{% endfor %}
+</ul>
+{% endblock %}
