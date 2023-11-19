@@ -2,6 +2,8 @@ use std::sync::Arc;
 use std::{net::SocketAddr, sync::Mutex};
 
 use askama::Template;
+use axum::extract::Path;
+use axum::routing::patch;
 use axum::{
     extract::State,
     http::StatusCode,
@@ -9,7 +11,7 @@ use axum::{
     routing::get,
     Router,
 };
-use git2::Repository;
+use git2::{Repository, BranchType};
 use tower_http::services::ServeDir;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -20,19 +22,50 @@ struct AppState {
 #[derive(Template)]
 #[template(path = "index.html")]
 struct IndexTemplate {
-    branches: Vec<String>,
+    branch_list: BranchListTemplate,
 }
 
 async fn index(State(state): State<Arc<Mutex<AppState>>>) -> impl IntoResponse {
     let repo = &state.lock().unwrap().repo;
+    let template = IndexTemplate {
+        branch_list: build_branch_list_template(repo, false),
+    };
+    HtmlTemplate(template)
+}
+
+fn build_branch_list_template(repo: &Repository, out_of_band: bool) -> BranchListTemplate {
     let branches = repo
-        .branches(None)
+        .branches(Some(BranchType::Local))
         .unwrap()
         .into_iter()
+        // TODO: Fix all this unwrapping
         .map(|b| b.unwrap().0.name().unwrap().unwrap().to_owned())
         .collect::<Vec<String>>();
-    let template = IndexTemplate { branches };
-    HtmlTemplate(template)
+    let current_branch = repo.head().unwrap().shorthand().unwrap().to_owned();
+    BranchListTemplate {
+        current_branch,
+        branches,
+        out_of_band
+    }
+}
+
+#[derive(Template)]
+#[template(path = "branch_list.html")]
+struct BranchListTemplate {
+    current_branch: String,
+    branches: Vec<String>,
+    out_of_band: bool
+}
+async fn checkout_branch(
+    State(state): State<Arc<Mutex<AppState>>>,
+    Path(branch): Path<String>,
+) -> impl IntoResponse {
+    let repo = &state.lock().unwrap().repo;
+    let branch_ref = &format!("refs/heads/{}", branch);
+    let obj = repo.revparse_single(branch_ref).unwrap();
+    let _ = repo.checkout_tree(&obj, None);
+    let _ = repo.set_head(branch_ref);
+    HtmlTemplate(build_branch_list_template(repo, true))
 }
 
 #[tokio::main]
@@ -51,6 +84,7 @@ async fn main() {
     let assets_path = std::env::current_dir().unwrap();
     let app = Router::new()
         .route("/", get(index))
+        .route("/checkout/*branch", patch(checkout_branch))
         .with_state(shared_state)
         .nest_service(
             "/assets",

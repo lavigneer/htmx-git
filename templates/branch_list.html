@@ -1,0 +1,24 @@
+{% if out_of_band %}
+<h2 class="text-lg" id="current-branch" hx-swap-oob="true">
+  {{current_branch}}
+</h2>
+
+{% endif %}
+<div
+  hx-target="this"
+  hx-swap="outerHTML"
+  class="grid grid-cols-[minmax(0,1fr)_100px] gap-1"
+>
+  {% for branch in branches %}
+  <div>{{branch}}</div>
+  {% if branch == current_branch.as_str() %}
+  <div class="justify-self-center">Active</div>
+  {% else %}
+  <button
+    class="rounded-full bg-indigo-600 text-white"
+    hx-patch="/checkout/{{branch}}"
+  >
+    Checkout
+  </button>
+  {% endif %} {% endfor %}
+</div>

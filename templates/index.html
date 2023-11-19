@@ -1,10 +1,13 @@
-<!-- prettier-ignore -->
-{% extends "base.html" %}
+{% extends "base.html" %} {% block content %}
+<div class="flex h-screen flex-col">
+  <div class="m-2">
+    <h1 class="text-xl">Current Branch</h1>
+    <h2 class="text-lg" id="current-branch">{{branch_list.current_branch}}</h2>
+  </div>
 
-{% block content %} 
-<ul>
-{% for branch in branches %}
-<li>{{branch}}</li>
-{% endfor %}
-</ul>
+  <div class="m-2 flex-grow">
+    <h1 class="text-xl">Branches</h1>
+    {{ branch_list|safe }}
+  </div>
+</div>
 {% endblock %}
