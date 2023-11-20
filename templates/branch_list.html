@@ -7,14 +7,29 @@
 <div
   hx-target="this"
   hx-swap="outerHTML"
-  class="grid grid-cols-[minmax(0,1fr)_120px] gap-1"
+  class="grid grid-cols-[minmax(0,1fr)_120px] items-center gap-1"
 >
   {% for branch in branches %}
   <div>{{branch}}</div>
   {% if branch == current_branch.as_str() %}
   <div
-    class="inline-flex items-center justify-self-center rounded-md px-4 py-2 leading-6"
+    class="inline-flex items-center rounded-md bg-green-600 px-4 py-2 leading-6 text-white"
   >
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      height="1em"
+      viewBox="0 0 448 512"
+      class="-ml-1 mr-3 h-5 w-5 text-white"
+    >
+      <style>
+        svg {
+          fill: #ffffff;
+        }
+      </style>
+      <path
+        d="M438.6 105.4c12.5 12.5 12.5 32.8 0 45.3l-256 256c-12.5 12.5-32.8 12.5-45.3 0l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0L160 338.7 393.4 105.4c12.5-12.5 32.8-12.5 45.3 0z"
+      />
+    </svg>
     Active
   </div>
   {% else %}
