@@ -1,0 +1,24 @@
+{% extends "base.html" %} {% block content %}
+<div class="grid grid-cols-[400px_minmax(0,1fr)] items-center gap-8">
+  <div class="flex h-screen flex-grow-0 flex-col">
+    <div class="m-2">
+      <h1 class="text-xl">Current Branch</h1>
+      <h2 class="text-lg" id="current-branch">
+        {{branch_list.current_branch}}
+      </h2>
+    </div>
+
+    <div class="m-2 flex-grow">
+      <h1 class="text-xl">Branches</h1>
+      {{ branch_list|safe }}
+    </div>
+  </div>
+  <div class="flex h-screen flex-grow flex-col overflow-auto">
+    <label>
+      Filter:
+      <input name="filter" hx-get="/log/{{branch_list.current_branch}}" hx-trigger="keyup changed delay:500ms" hx-target="#log-list"/>
+    </label>
+    {{ log_list|safe }}
+  </div>
+</div>
+{% endblock %}

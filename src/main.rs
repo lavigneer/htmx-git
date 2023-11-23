@@ -1,8 +1,9 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::{net::SocketAddr, sync::Mutex};
 
 use askama::Template;
-use axum::extract::Path;
+use axum::extract::{Path, Query};
 use axum::routing::patch;
 use axum::{
     extract::State,
@@ -11,7 +12,9 @@ use axum::{
     routing::get,
     Router,
 };
-use git2::{Repository, BranchType};
+use fuzzy_matcher::skim::SkimMatcherV2;
+use fuzzy_matcher::FuzzyMatcher;
+use git2::{BranchType, Repository};
 use tower_http::services::ServeDir;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -33,6 +36,87 @@ async fn index(State(state): State<Arc<Mutex<AppState>>>) -> impl IntoResponse {
     HtmlTemplate(template)
 }
 
+struct CommitRow {
+    id: String,
+    message: String,
+}
+
+#[derive(Template)]
+#[template(path = "log.html")]
+struct LogTemplate {
+    branch_list: BranchListTemplate,
+    log_list: LogListTemplate,
+}
+
+#[derive(Template)]
+#[template(path = "log_list.html")]
+struct LogListTemplate {
+    commits: Vec<CommitRow>,
+}
+
+async fn log(
+    State(state): State<Arc<Mutex<AppState>>>,
+    Path(branch): Path<String>,
+    Query(params): Query<HashMap<String, String>>,
+) -> impl IntoResponse {
+    let repo = &state.lock().unwrap().repo;
+    let branch_ref = &format!("refs/heads/{}", branch);
+    let obj = repo.revparse_single(branch_ref).unwrap();
+    let mut revwalk = repo.revwalk().unwrap();
+    revwalk.set_sorting(git2::Sort::TOPOLOGICAL).unwrap();
+    revwalk.push(obj.id()).unwrap();
+    let filter = params.get("filter");
+    let matcher = SkimMatcherV2::default();
+    let commits = revwalk
+        .into_iter()
+        .map(|id| match id {
+            Ok(id) => match repo.find_commit(id) {
+                Ok(commit) => CommitRow {
+                    id: id.to_string(),
+                    message: commit.message().unwrap_or("UNKNOWN").to_owned(),
+                },
+                Err(_err) => CommitRow {
+                    id: id.to_string(),
+                    message: "Error Finding Commit".to_owned(),
+                },
+            },
+            Err(_err) => CommitRow {
+                id: "".to_owned(),
+                message: "Error Finding Commit".to_owned(),
+            },
+        })
+        .filter(|commit| {
+            !filter.is_some()
+                || matcher
+                    .fuzzy_match(&commit.message, filter.unwrap())
+                    .is_some_and(|x| x > 10)
+        })
+        .collect();
+    if filter.is_some() {
+        let template = LogListTemplate { commits };
+        return match template.render() {
+            Ok(html) => Html(html).into_response(),
+            Err(err) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to render template. Error: {err}"),
+            )
+                .into_response(),
+        }
+    }
+    let template = LogTemplate {
+        branch_list: build_branch_list_template(repo, false),
+        log_list: LogListTemplate { commits },
+    };
+    match template.render() {
+        Ok(html) => Html(html).into_response(),
+        Err(err) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to render template. Error: {err}"),
+        )
+            .into_response(),
+    }
+}
+
 fn build_branch_list_template(repo: &Repository, out_of_band: bool) -> BranchListTemplate {
     let branches = repo
         .branches(Some(BranchType::Local))
@@ -45,7 +129,7 @@ fn build_branch_list_template(repo: &Repository, out_of_band: bool) -> BranchLis
     BranchListTemplate {
         current_branch,
         branches,
-        out_of_band
+        out_of_band,
     }
 }
 
@@ -54,7 +138,7 @@ fn build_branch_list_template(repo: &Repository, out_of_band: bool) -> BranchLis
 struct BranchListTemplate {
     current_branch: String,
     branches: Vec<String>,
-    out_of_band: bool
+    out_of_band: bool,
 }
 async fn checkout_branch(
     State(state): State<Arc<Mutex<AppState>>>,
@@ -84,6 +168,7 @@ async fn main() {
     let assets_path = std::env::current_dir().unwrap();
     let app = Router::new()
         .route("/", get(index))
+        .route("/log/*branch", get(log))
         .route("/checkout/*branch", patch(checkout_branch))
         .with_state(shared_state)
         .nest_service(
