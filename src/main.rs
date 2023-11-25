@@ -45,16 +45,15 @@ struct CommitRow {
 #[template(path = "log.html")]
 struct LogTemplate {
     branch_list: BranchListTemplate,
-    log_list: LogListTemplate,
 }
 
 #[derive(Template)]
 #[template(path = "log_list.html")]
-struct LogListTemplate {
-    commits: Vec<CommitRow>,
+struct LogListTemplate<'a> {
+    commits: Vec<&'a CommitRow>,
 }
 
-async fn log(
+async fn log_list(
     State(state): State<Arc<Mutex<AppState>>>,
     Path(branch): Path<String>,
     Query(params): Query<HashMap<String, String>>,
@@ -66,55 +65,76 @@ async fn log(
     revwalk.set_sorting(git2::Sort::TOPOLOGICAL).unwrap();
     revwalk.push(obj.id()).unwrap();
     let filter = params.get("filter");
+    let page: usize = match params.get("page") {
+        Some(s) => s.parse().unwrap_or(0),
+        None => 0,
+    };
     let matcher = SkimMatcherV2::default();
-    let commits = revwalk
+    let mut commits: Vec<(i64, CommitRow)> = revwalk
         .into_iter()
-        .map(|id| match id {
-            Ok(id) => match repo.find_commit(id) {
-                Ok(commit) => CommitRow {
-                    id: id.to_string(),
-                    message: commit.message().unwrap_or("UNKNOWN").to_owned(),
-                },
-                Err(_err) => CommitRow {
-                    id: id.to_string(),
+        .filter_map(|id| match (filter, id) {
+            (_, Ok(id)) => match (filter, repo.find_commit(id)) {
+                (Some(filter), Ok(commit)) => {
+                    let message = commit.message().unwrap_or("UNKNOWN").to_owned();
+                    let score = matcher.fuzzy_match(&message, filter);
+                    return score.and_then(|score| {
+                        Some((
+                            score,
+                            CommitRow {
+                                id: id.to_string(),
+                                message,
+                            },
+                        ))
+                    });
+                }
+                (None, Ok(commit)) => Some((
+                    0,
+                    CommitRow {
+                        id: id.to_string(),
+                        message: commit.message().unwrap_or("UNKNOWN").to_owned(),
+                    },
+                )),
+                (Some(_), Err(_err)) => None,
+                (None, Err(_err)) => Some((
+                    0,
+                    CommitRow {
+                        id: id.to_string(),
+                        message: "Error Finding Commit".to_owned(),
+                    },
+                )),
+            },
+            (Some(_), Err(_err)) => None,
+            (None, Err(_err)) => Some((
+                0,
+                CommitRow {
+                    id: "".to_owned(),
                     message: "Error Finding Commit".to_owned(),
                 },
-            },
-            Err(_err) => CommitRow {
-                id: "".to_owned(),
-                message: "Error Finding Commit".to_owned(),
-            },
-        })
-        .filter(|commit| {
-            !filter.is_some()
-                || matcher
-                    .fuzzy_match(&commit.message, filter.unwrap())
-                    .is_some_and(|x| x > 10)
+            )),
         })
         .collect();
-    if filter.is_some() {
-        let template = LogListTemplate { commits };
-        return match template.render() {
-            Ok(html) => Html(html).into_response(),
-            Err(err) => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Failed to render template. Error: {err}"),
-            )
-                .into_response(),
-        }
-    }
-    let template = LogTemplate {
-        branch_list: build_branch_list_template(repo, false),
-        log_list: LogListTemplate { commits },
-    };
-    match template.render() {
+    commits.sort_by(|a, b| b.0.cmp(&a.0));
+    let commits = commits[page * 100..(page + 1) * 100]
+        .iter()
+        .map(|(_, c)| c)
+        .collect::<Vec<&CommitRow>>();
+    let template = LogListTemplate { commits };
+    return match template.render() {
         Ok(html) => Html(html).into_response(),
         Err(err) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             format!("Failed to render template. Error: {err}"),
         )
             .into_response(),
-    }
+    };
+}
+
+async fn log(State(state): State<Arc<Mutex<AppState>>>) -> impl IntoResponse {
+    let repo = &state.lock().unwrap().repo;
+    let template = LogTemplate {
+        branch_list: build_branch_list_template(repo, false),
+    };
+    HtmlTemplate(template)
 }
 
 fn build_branch_list_template(repo: &Repository, out_of_band: bool) -> BranchListTemplate {
@@ -169,6 +189,7 @@ async fn main() {
     let app = Router::new()
         .route("/", get(index))
         .route("/log/*branch", get(log))
+        .route("/log/list/*branch", get(log_list))
         .route("/checkout/*branch", patch(checkout_branch))
         .with_state(shared_state)
         .nest_service(

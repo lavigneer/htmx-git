@@ -14,11 +14,36 @@
     </div>
   </div>
   <div class="flex h-screen flex-grow flex-col overflow-auto">
-    <label>
-      Filter:
-      <input name="filter" hx-get="/log/{{branch_list.current_branch}}" hx-trigger="keyup changed delay:500ms" hx-target="#log-list"/>
-    </label>
-    {{ log_list|safe }}
+    <input
+      class="mt-1 block w-full rounded-md border-transparent bg-gray-100 focus:border-gray-500 focus:bg-white focus:ring-0"
+      name="filter"
+      placeholder="Filter..."
+      hx-get="/log/list/{{branch_list.current_branch}}"
+      hx-trigger="keyup changed delay:500ms, load"
+      hx-target="#log-list"
+      hx-swap="innerHTML"
+      hx-replace-url="/log/{{branch_list.current_branch}}"
+    />
+    <table class="w-full table-fixed border-collapse">
+      <thead>
+        <tr>
+          <th
+            class="w-3/12 border border-slate-300 p-4 text-left font-semibold text-slate-900"
+          >
+            Sha
+          </th>
+          <th
+            class="border border-slate-300 p-4 text-left font-semibold text-slate-900"
+          >
+            Message
+          </th>
+        </tr>
+      </thead>
+      <tbody id="log-list"></tbody>
+      <tfoot>
+        <button>A</button>
+      </tfoot>
+    </table>
   </div>
 </div>
 {% endblock %}
