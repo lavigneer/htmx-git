@@ -22,7 +22,6 @@
       hx-trigger="keyup changed delay:500ms, load"
       hx-target="#log-list"
       hx-swap="innerHTML"
-      hx-replace-url="/log/{{branch_list.current_branch}}"
     />
     <table class="w-full table-fixed border-collapse">
       <thead>
@@ -41,7 +40,22 @@
       </thead>
       <tbody id="log-list"></tbody>
       <tfoot>
-        <button>A</button>
+        <button
+          hx-get="/log/list/{{branch_list.current_branch}}?filter={{branch_list.current_filter}}&page={{branch_list.current_page + 1}}"
+          hx-trigger="click"
+          hx-target="#log-list"
+          hx-swap="innerHTML"
+        >
+          Next Page
+        </button>
+        <button
+          hx-get="/log/list/{{branch_list.current_branch}}"
+          hx-trigger="click"
+          hx-target="#log-list"
+          hx-swap="innerHTML"
+        >
+          Previous Page
+        </button>
       </tfoot>
     </table>
   </div>

@@ -51,6 +51,8 @@ struct LogTemplate {
 #[template(path = "log_list.html")]
 struct LogListTemplate<'a> {
     commits: Vec<&'a CommitRow>,
+    current_page: usize,
+    current_filter: Option<&'a String>,
 }
 
 async fn log_list(
@@ -118,7 +120,11 @@ async fn log_list(
         .iter()
         .map(|(_, c)| c)
         .collect::<Vec<&CommitRow>>();
-    let template = LogListTemplate { commits };
+    let template = LogListTemplate {
+        commits,
+        current_page: page,
+        current_filter: filter
+    };
     return match template.render() {
         Ok(html) => Html(html).into_response(),
         Err(err) => (
