@@ -29,7 +29,7 @@ struct IndexTemplate {
 
 async fn index(State(state): State<Arc<Mutex<AppState>>>) -> impl IntoResponse {
     let repo = &state.lock().unwrap().repo;
-    let branches = repo.list_branches();
+    let branches = repo.list_local_branches();
     let current_branch = repo.get_current_branch().unwrap();
     let template = IndexTemplate {
         current_branch,
@@ -64,7 +64,7 @@ async fn log(
     };
     let commits = commits.skip(page * 100).take(100).collect::<Vec<Commit>>();
 
-    let branches = repo.list_branches();
+    let branches = repo.list_local_branches();
     let template = LogTemplate {
         commits,
         current_branch,
@@ -91,7 +91,7 @@ async fn checkout_branch(
 ) -> impl IntoResponse {
     let repo = &state.lock().unwrap().repo;
     repo.checkout_local_branch(&branch).unwrap();
-    let branches = repo.list_branches();
+    let branches = repo.list_local_branches();
     let current_branch = repo.get_current_branch().unwrap();
     let template = BranchListTemplate {
         current_branch,
