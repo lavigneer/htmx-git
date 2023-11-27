@@ -3,29 +3,38 @@
   <div class="flex h-screen flex-grow-0 flex-col">
     <div class="m-2">
       <h1 class="text-xl">Current Branch</h1>
-      <h2 class="text-lg" id="current-branch">
-        {{current_branch}}
-      </h2>
+      <h2 class="text-lg" id="current-branch">{{current_branch}}</h2>
     </div>
 
     <div class="m-2 flex-grow">
       <h1 class="text-xl">Branches</h1>
-      {% let out_of_band = false %}
-      {% include "branch_list.html" %}
+      {% let out_of_band = false %} {% include "branch_list.html" %}
     </div>
   </div>
   <div class="flex h-screen flex-grow flex-col overflow-auto">
     <input
       class="mt-1 block w-full rounded-md border-transparent bg-gray-100 focus:border-gray-500 focus:bg-white focus:ring-0"
-      name="filter" placeholder="Filter..." value="{{current_filter}}" hx-get="/log/{{current_branch}}" hx-trigger="keyup changed delay:500ms"
-      hx-target="#log-list" hx-swap="innerHTML" hx-select="#log-list" hx-replace-url="true" />
+      name="filter"
+      placeholder="Filter..."
+      value="{{current_filter}}"
+      hx-get="/log/{{current_branch}}"
+      hx-trigger="keyup changed delay:500ms"
+      hx-target="#log-list"
+      hx-swap="innerHTML"
+      hx-select="#log-list"
+      hx-replace-url="true"
+    />
     <table id="log-list" class="w-full table-fixed border-collapse">
-      <thead>
+      <thead class="sticky top-0 bg-gray-50">
         <tr>
-          <th class="w-3/12 border border-slate-300 p-4 text-left font-semibold text-slate-900">
+          <th
+            class="w-3/12 border border-slate-300 p-4 text-left font-semibold text-slate-900"
+          >
             Sha
           </th>
-          <th class="border border-slate-300 p-4 text-left font-semibold text-slate-900">
+          <th
+            class="border border-slate-300 p-4 text-left font-semibold text-slate-900"
+          >
             Message
           </th>
         </tr>
@@ -33,28 +42,48 @@
       <tbody>
         {% for commit in commits %}
         <tr>
-          <td class="overflow-hidden overflow-ellipsis border border-slate-300 p-4" title="{{ commit.id }}">
+          <td
+            class="overflow-hidden overflow-ellipsis border border-slate-300 p-4"
+            title="{{ commit.id }}"
+          >
             {{ commit.id }}
           </td>
-          <td class="break-words border border-slate-300 p-4">{{ commit.message }}</td>
+          <td class="break-words border border-slate-300 p-4">
+            {{ commit.message }}
+          </td>
         </tr>
         {% endfor %}
       </tbody>
-      <tfoot>
+      <tfoot class="sticky bottom-0 bg-gray-50">
         <tr>
           <td colspan="2">
-            {% if current_page > 0 %}
-            <button hx-get="/log/{{current_branch}}?filter={{current_filter}}&page={{current_page - 1}}"
-              hx-trigger="click" hx-target="#log-list" hx-swap="outerHTML" hx-select="#log-list" hx-replace-url="true">
-              Previous Page
-            </button>
-            {% endif %}
-            {% if commits.len() >= 100 %}
-            <button hx-get="/log/{{current_branch}}?filter={{current_filter}}&page={{current_page + 1}}"
-              hx-trigger="click" hx-target="#log-list" hx-swap="outerHTML" hx-select="#log-list" hx-replace-url="true">
-              Next Page
-            </button>
-            {% endif %}
+            <nav class="inline-flex -space-x-px rounded-md shadow-sm">
+              {% if current_page > 0 %}
+              <button
+                hx-get="/log/{{current_branch}}?filter={{current_filter}}&page={{current_page - 1}}"
+                hx-trigger="click"
+                hx-target="#log-list"
+                hx-swap="outerHTML"
+                hx-select="#log-list"
+                hx-replace-url="true"
+                class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0"
+              >
+                Previous Page
+              </button>
+              {% endif %} {% if commits.len() >= 100 %}
+              <button
+                hx-get="/log/{{current_branch}}?filter={{current_filter}}&page={{current_page + 1}}"
+                hx-trigger="click"
+                hx-target="#log-list"
+                hx-swap="outerHTML"
+                hx-select="#log-list"
+                hx-replace-url="true"
+                class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0"
+              >
+                Next Page
+              </button>
+              {% endif %}
+            </nav>
           </td>
         </tr>
       </tfoot>
