@@ -43,34 +43,19 @@ async fn index(State(state): State<Arc<Mutex<AppState>>>) -> impl IntoResponse {
 struct LogTemplate {
     current_branch: String,
     branches: Vec<String>,
-}
-
-async fn log(State(state): State<Arc<Mutex<AppState>>>) -> impl IntoResponse {
-    let repo = &state.lock().unwrap().repo;
-    let current_branch = repo.get_current_branch().unwrap();
-    let branches = repo.list_branches();
-    let template = LogTemplate {
-        current_branch,
-        branches,
-    };
-    HtmlTemplate(template)
-}
-
-#[derive(Template)]
-#[template(path = "log_list.html")]
-struct LogListTemplate {
     commits: Vec<Commit>,
     current_page: usize,
     current_filter: String,
-    current_branch: String,
 }
 
-async fn log_list(
+async fn log(
     State(state): State<Arc<Mutex<AppState>>>,
     Path(branch): Path<String>,
     Query(params): Query<HashMap<String, String>>,
 ) -> impl IntoResponse {
     let repo = &state.lock().unwrap().repo;
+    let current_branch = repo.get_current_branch().unwrap();
+
     let filter = params.get("filter").map(|f| f.as_str());
     let commits = repo.list_commits(&branch, filter);
     let page: usize = match params.get("page") {
@@ -78,9 +63,12 @@ async fn log_list(
         None => 0,
     };
     let commits = commits.skip(page * 100).take(100).collect::<Vec<Commit>>();
-    let template = LogListTemplate {
+
+    let branches = repo.list_branches();
+    let template = LogTemplate {
         commits,
-        current_branch: branch,
+        current_branch,
+        branches,
         current_page: page,
         current_filter: match filter {
             None => "".to_string(),
@@ -130,7 +118,6 @@ async fn main() {
     let app = Router::new()
         .route("/", get(index))
         .route("/log/*branch", get(log))
-        .route("/log/list/*branch", get(log_list))
         .route("/checkout/*branch", patch(checkout_branch))
         .with_state(shared_state)
         .nest_service(

@@ -17,14 +17,47 @@
   <div class="flex h-screen flex-grow flex-col overflow-auto">
     <input
       class="mt-1 block w-full rounded-md border-transparent bg-gray-100 focus:border-gray-500 focus:bg-white focus:ring-0"
-      name="filter"
-      placeholder="Filter..."
-      hx-get="/log/list/{{current_branch}}"
-      hx-trigger="keyup changed delay:500ms, load"
-      hx-target="#log-list"
-      hx-swap="innerHTML"
-    />
+      name="filter" placeholder="Filter..." value="{{current_filter}}" hx-get="/log/{{current_branch}}" hx-trigger="keyup changed delay:500ms"
+      hx-target="#log-list" hx-swap="innerHTML" hx-select="#log-list" hx-replace-url="true" />
     <table id="log-list" class="w-full table-fixed border-collapse">
+      <thead>
+        <tr>
+          <th class="w-3/12 border border-slate-300 p-4 text-left font-semibold text-slate-900">
+            Sha
+          </th>
+          <th class="border border-slate-300 p-4 text-left font-semibold text-slate-900">
+            Message
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for commit in commits %}
+        <tr>
+          <td class="overflow-hidden overflow-ellipsis border border-slate-300 p-4" title="{{ commit.id }}">
+            {{ commit.id }}
+          </td>
+          <td class="break-words border border-slate-300 p-4">{{ commit.message }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="2">
+            {% if current_page > 0 %}
+            <button hx-get="/log/{{current_branch}}?filter={{current_filter}}&page={{current_page - 1}}"
+              hx-trigger="click" hx-target="#log-list" hx-swap="outerHTML" hx-select="#log-list" hx-replace-url="true">
+              Previous Page
+            </button>
+            {% endif %}
+            {% if commits.len() >= 100 %}
+            <button hx-get="/log/{{current_branch}}?filter={{current_filter}}&page={{current_page + 1}}"
+              hx-trigger="click" hx-target="#log-list" hx-swap="outerHTML" hx-select="#log-list" hx-replace-url="true">
+              Next Page
+            </button>
+            {% endif %}
+          </td>
+        </tr>
+      </tfoot>
     </table>
   </div>
 </div>
