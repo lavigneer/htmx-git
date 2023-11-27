@@ -2,12 +2,13 @@
 <div class="flex h-screen flex-col">
   <div class="m-2">
     <h1 class="text-xl">Current Branch</h1>
-    <h2 class="text-lg" id="current-branch">{{branch_list.current_branch}}</h2>
+    <h2 class="text-lg" id="current-branch">{{current_branch}}</h2>
   </div>
 
   <div class="m-2 flex-grow">
     <h1 class="text-xl">Branches</h1>
-    {{ branch_list|safe }}
+      {% let out_of_band = false %}
+      {% include "branch_list.html" %}
   </div>
 </div>
 {% endblock %}

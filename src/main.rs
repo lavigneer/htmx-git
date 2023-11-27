@@ -12,47 +12,57 @@ use axum::{
     routing::get,
     Router,
 };
-use fuzzy_matcher::skim::SkimMatcherV2;
-use fuzzy_matcher::FuzzyMatcher;
-use git2::{BranchType, Repository};
+use htmx_git_client::git::{Commit, GitWrapper};
 use tower_http::services::ServeDir;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 struct AppState {
-    repo: Repository,
+    repo: GitWrapper,
 }
 
 #[derive(Template)]
 #[template(path = "index.html")]
 struct IndexTemplate {
-    branch_list: BranchListTemplate,
+    current_branch: String,
+    branches: Vec<String>,
 }
 
 async fn index(State(state): State<Arc<Mutex<AppState>>>) -> impl IntoResponse {
     let repo = &state.lock().unwrap().repo;
+    let branches = repo.list_branches();
+    let current_branch = repo.get_current_branch().unwrap();
     let template = IndexTemplate {
-        branch_list: build_branch_list_template(repo, false),
+        current_branch,
+        branches,
     };
     HtmlTemplate(template)
-}
-
-struct CommitRow {
-    id: String,
-    message: String,
 }
 
 #[derive(Template)]
 #[template(path = "log.html")]
 struct LogTemplate {
-    branch_list: BranchListTemplate,
+    current_branch: String,
+    branches: Vec<String>,
+}
+
+async fn log(State(state): State<Arc<Mutex<AppState>>>) -> impl IntoResponse {
+    let repo = &state.lock().unwrap().repo;
+    let current_branch = repo.get_current_branch().unwrap();
+    let branches = repo.list_branches();
+    let template = LogTemplate {
+        current_branch,
+        branches,
+    };
+    HtmlTemplate(template)
 }
 
 #[derive(Template)]
 #[template(path = "log_list.html")]
-struct LogListTemplate<'a> {
-    commits: Vec<&'a CommitRow>,
+struct LogListTemplate {
+    commits: Vec<Commit>,
     current_page: usize,
-    current_filter: Option<&'a String>,
+    current_filter: String,
+    current_branch: String,
 }
 
 async fn log_list(
@@ -61,102 +71,23 @@ async fn log_list(
     Query(params): Query<HashMap<String, String>>,
 ) -> impl IntoResponse {
     let repo = &state.lock().unwrap().repo;
-    let branch_ref = &format!("refs/heads/{}", branch);
-    let obj = repo.revparse_single(branch_ref).unwrap();
-    let mut revwalk = repo.revwalk().unwrap();
-    revwalk.set_sorting(git2::Sort::TOPOLOGICAL).unwrap();
-    revwalk.push(obj.id()).unwrap();
-    let filter = params.get("filter");
+    let filter = params.get("filter").map(|f| f.as_str());
+    let commits = repo.list_commits(&branch, filter);
     let page: usize = match params.get("page") {
         Some(s) => s.parse().unwrap_or(0),
         None => 0,
     };
-    let matcher = SkimMatcherV2::default();
-    let mut commits: Vec<(i64, CommitRow)> = revwalk
-        .into_iter()
-        .filter_map(|id| match (filter, id) {
-            (_, Ok(id)) => match (filter, repo.find_commit(id)) {
-                (Some(filter), Ok(commit)) => {
-                    let message = commit.message().unwrap_or("UNKNOWN").to_owned();
-                    let score = matcher.fuzzy_match(&message, filter);
-                    return score.and_then(|score| {
-                        Some((
-                            score,
-                            CommitRow {
-                                id: id.to_string(),
-                                message,
-                            },
-                        ))
-                    });
-                }
-                (None, Ok(commit)) => Some((
-                    0,
-                    CommitRow {
-                        id: id.to_string(),
-                        message: commit.message().unwrap_or("UNKNOWN").to_owned(),
-                    },
-                )),
-                (Some(_), Err(_err)) => None,
-                (None, Err(_err)) => Some((
-                    0,
-                    CommitRow {
-                        id: id.to_string(),
-                        message: "Error Finding Commit".to_owned(),
-                    },
-                )),
-            },
-            (Some(_), Err(_err)) => None,
-            (None, Err(_err)) => Some((
-                0,
-                CommitRow {
-                    id: "".to_owned(),
-                    message: "Error Finding Commit".to_owned(),
-                },
-            )),
-        })
-        .collect();
-    commits.sort_by(|a, b| b.0.cmp(&a.0));
-    let commits = commits[page * 100..(page + 1) * 100]
-        .iter()
-        .map(|(_, c)| c)
-        .collect::<Vec<&CommitRow>>();
+    let commits = commits.skip(page * 100).take(100).collect::<Vec<Commit>>();
     let template = LogListTemplate {
         commits,
+        current_branch: branch,
         current_page: page,
-        current_filter: filter
-    };
-    return match template.render() {
-        Ok(html) => Html(html).into_response(),
-        Err(err) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to render template. Error: {err}"),
-        )
-            .into_response(),
-    };
-}
-
-async fn log(State(state): State<Arc<Mutex<AppState>>>) -> impl IntoResponse {
-    let repo = &state.lock().unwrap().repo;
-    let template = LogTemplate {
-        branch_list: build_branch_list_template(repo, false),
+        current_filter: match filter {
+            None => "".to_string(),
+            Some(filter) => filter.to_string(),
+        },
     };
     HtmlTemplate(template)
-}
-
-fn build_branch_list_template(repo: &Repository, out_of_band: bool) -> BranchListTemplate {
-    let branches = repo
-        .branches(Some(BranchType::Local))
-        .unwrap()
-        .into_iter()
-        // TODO: Fix all this unwrapping
-        .map(|b| b.unwrap().0.name().unwrap().unwrap().to_owned())
-        .collect::<Vec<String>>();
-    let current_branch = repo.head().unwrap().shorthand().unwrap().to_owned();
-    BranchListTemplate {
-        current_branch,
-        branches,
-        out_of_band,
-    }
 }
 
 #[derive(Template)]
@@ -171,11 +102,15 @@ async fn checkout_branch(
     Path(branch): Path<String>,
 ) -> impl IntoResponse {
     let repo = &state.lock().unwrap().repo;
-    let branch_ref = &format!("refs/heads/{}", branch);
-    let obj = repo.revparse_single(branch_ref).unwrap();
-    let _ = repo.checkout_tree(&obj, None);
-    let _ = repo.set_head(branch_ref);
-    HtmlTemplate(build_branch_list_template(repo, true))
+    repo.checkout_local_branch(&branch).unwrap();
+    let branches = repo.list_branches();
+    let current_branch = repo.get_current_branch().unwrap();
+    let template = BranchListTemplate {
+        current_branch,
+        branches,
+        out_of_band: true,
+    };
+    HtmlTemplate(template)
 }
 
 #[tokio::main]
@@ -188,7 +123,7 @@ async fn main() {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    let repo = Repository::open("/home/elavigne/workspace/htmx-git-client/test-repo").unwrap();
+    let repo = GitWrapper::new("/home/elavigne/workspace/htmx-git-client/test-repo").unwrap();
     let shared_state = Arc::new(Mutex::new(AppState { repo }));
 
     let assets_path = std::env::current_dir().unwrap();

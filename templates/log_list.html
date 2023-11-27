@@ -1,11 +1,36 @@
-{% for commit in commits %}
-<tr>
-  <td
-    class="overflow-hidden overflow-ellipsis border border-slate-300 p-4"
-    title="{{ commit.id }}"
-  >
-    {{ commit.id }}
-  </td>
-  <td class="break-words border border-slate-300 p-4">{{ commit.message }}</td>
-</tr>
-{% endfor %}
+<table id="log-list">
+  <thead>
+    <tr>
+      <th class="w-3/12 border border-slate-300 p-4 text-left font-semibold text-slate-900">
+        Sha
+      </th>
+      <th class="border border-slate-300 p-4 text-left font-semibold text-slate-900">
+        Message
+      </th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for commit in commits %}
+    <tr>
+      <td class="overflow-hidden overflow-ellipsis border border-slate-300 p-4" title="{{ commit.id }}">
+        {{ commit.id }}
+      </td>
+      <td class="break-words border border-slate-300 p-4">{{ commit.message }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+  <tfoot>
+    {% if commits.len() >= 100 %}
+    <button hx-get="/log/list/{{current_branch}}?filter={{current_filter}}&page={{current_page + 1}}" hx-trigger="click"
+      hx-target="#log-list" hx-swap="innerHTML">
+      Next Page
+    </button>
+    {% endif %}
+    {% if current_page > 0 %}
+    <button hx-get="/log/list/{{current_branch}}?filter={{current_filter}}&page={{current_page - 1}}" hx-trigger="click"
+      hx-target="#log-list" hx-swap="innerHTML">
+      Previous Page
+    </button>
+    {% endif %}
+  </tfoot>
+</table>
