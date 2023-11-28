@@ -1,7 +1,7 @@
-use itertools::Itertools;
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
 use git2::{BranchType, Repository};
+use itertools::Itertools;
 
 pub struct GitWrapper {
     repo: Repository,
@@ -61,11 +61,14 @@ impl GitWrapper {
     }
 
     pub fn list_remote_branches(&self, remote: &str) -> Result<Vec<String>, git2::Error> {
-        let remote = self.repo.find_remote(remote)?;
+        let mut remote = self.repo.find_remote(remote)?;
+        remote.connect(git2::Direction::Fetch).unwrap();
         Ok(remote
-            .fetch_refspecs()?
+            .list()?
             .into_iter()
-            .flat_map(|s| s.and_then(|b| Some(b.to_string())))
+            .map(|head| head.name())
+            .filter(|head_name| head_name.starts_with("refs/heads/"))
+            .map(|head_name| head_name.replace("refs/heads/", ""))
             .collect())
     }
 
@@ -122,6 +125,7 @@ impl GitWrapper {
                     message: "Error Finding Commit".to_owned(),
                     sort_score: 0,
                 }),
-            }).sorted()
+            })
+            .sorted()
     }
 }

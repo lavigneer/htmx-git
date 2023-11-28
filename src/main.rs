@@ -25,15 +25,18 @@ struct AppState {
 struct IndexTemplate {
     current_branch: String,
     branches: Vec<String>,
+    remotes: Vec<String>,
 }
 
 async fn index(State(state): State<Arc<Mutex<AppState>>>) -> impl IntoResponse {
     let repo = &state.lock().unwrap().repo;
     let branches = repo.list_local_branches();
+    let remotes = repo.list_remotes().unwrap();
     let current_branch = repo.get_current_branch().unwrap();
     let template = IndexTemplate {
         current_branch,
         branches,
+        remotes,
     };
     HtmlTemplate(template)
 }
@@ -46,6 +49,7 @@ struct LogTemplate {
     commits: Vec<Commit>,
     current_page: usize,
     current_filter: String,
+    remotes: Vec<String>,
 }
 
 async fn log(
@@ -64,11 +68,13 @@ async fn log(
     };
     let commits = commits.skip(page * 100).take(100).collect::<Vec<Commit>>();
 
+    let remotes = repo.list_remotes().unwrap();
     let branches = repo.list_local_branches();
     let template = LogTemplate {
         commits,
         current_branch,
         branches,
+        remotes,
         current_page: page,
         current_filter: match filter {
             None => "".to_string(),
@@ -101,6 +107,42 @@ async fn checkout_branch(
     HtmlTemplate(template)
 }
 
+#[derive(Template)]
+#[template(path = "remote_branch_list.html")]
+struct RemoteBranchListTemplate {
+    remote: String,
+    branches: Vec<String>,
+    open: bool,
+}
+async fn remote_branch_list(
+    State(state): State<Arc<Mutex<AppState>>>,
+    Path(remote): Path<String>,
+    Query(params): Query<HashMap<String, String>>,
+) -> impl IntoResponse {
+    let open = params
+        .get("open")
+        .unwrap_or(&"false".to_string())
+        .parse::<bool>()
+        .unwrap_or(true);
+    let repo = &state.lock().unwrap().repo;
+    let branches = match open {
+        true => repo.list_remote_branches(&remote).unwrap(),
+        false => vec![],
+    };
+    let template = RemoteBranchListTemplate {
+        branches,
+        remote,
+        open,
+    };
+    HtmlTemplate(template)
+}
+
+// #[derive(Template)]
+// #[template(path = "remote_list.html")]
+// struct RemoteListTemplate {
+//     remotes: Vec<String>,
+// }
+
 #[tokio::main]
 async fn main() {
     tracing_subscriber::registry()
@@ -118,6 +160,7 @@ async fn main() {
     let app = Router::new()
         .route("/", get(index))
         .route("/log/*branch", get(log))
+        .route("/remote/branches/*remote", get(remote_branch_list))
         .route("/checkout/*branch", patch(checkout_branch))
         .with_state(shared_state)
         .nest_service(

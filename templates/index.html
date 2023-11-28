@@ -6,10 +6,14 @@
       <h2 class="text-lg" id="current-branch">{{ current_branch }}</h2>
     </div>
 
-    <div class="m-2 flex-grow">
+    <div class="m-2">
       <h1 class="text-xl">Branches</h1>
       {% let out_of_band = false %}
       {% include "branch_list.html" %}
+    </div>
+    <div class="m-2">
+      <h1 class="text-xl">Remotes</h1>
+      {% include "remote_list.html" %}
     </div>
   </div>
 {% endblock %}

@@ -1,0 +1,51 @@
+<div hx-target="this" hx-swap="outerHTML">
+  <button
+    type="button"
+    class="flex w-full items-center justify-between gap-3 border-b border-gray-200 py-5 font-medium text-gray-500 rtl:text-right dark:border-gray-700 dark:text-gray-400"
+    aria-expanded="true"
+    hx-get="/remote/branches/{{ remote }}"
+    hx-vals='{"open": "{{ !open }}"}'
+  >
+    <span>{{ remote }}</span>
+    {% if open %}
+      <svg
+        data-accordion-icon
+        class="h-3 w-3 shrink-0 rotate-180"
+        aria-hidden="true"
+        xmlns="http://www.w3.org/2000/svg"
+        fill="none"
+        viewBox="0 0 10 6"
+      >
+        <path
+          stroke="currentColor"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          d="M9 5 5 1 1 5"
+        />
+      </svg>
+    {% else %}
+      <svg
+        data-accordion-icon=""
+        class="h-3 w-3 shrink-0"
+        aria-hidden="true"
+        xmlns="http://www.w3.org/2000/svg"
+        fill="none"
+        viewBox="0 0 10 6"
+      >
+        <path
+          stroke="currentColor"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          d="M9 5 5 1 1 5"
+        ></path>
+      </svg>
+    {% endif %}
+  </button>
+  {% if open %}
+    {% for branch in branches %}
+      <div>{{ branch }}</div>
+    {% endfor %}
+  {% endif %}
+</div>
