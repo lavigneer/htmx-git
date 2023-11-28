@@ -1,8 +1,7 @@
 {% if out_of_band %}
-<h2 class="text-lg" id="current-branch" hx-swap-oob="true">
-  {{current_branch}}
-</h2>
-
+  <h2 class="text-lg" id="current-branch" hx-swap-oob="true">
+    {{ current_branch }}
+  </h2>
 {% endif %}
 <div
   hx-target="this"
@@ -10,54 +9,55 @@
   class="grid grid-cols-[minmax(0,1fr)_120px] items-center gap-1"
 >
   {% for branch in branches %}
-  <div><a href="/log/{{branch}}">{{branch}}</a></div>
-  {% if branch == current_branch.as_str() %}
-  <div
-    class="inline-flex items-center rounded-md bg-green-600 px-4 py-2 leading-6 text-white"
-  >
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      height="1em"
-      viewBox="0 0 448 512"
-      class="-ml-1 mr-3 h-5 w-5 text-white"
-    >
-      <style>
-        svg {
-          fill: #ffffff;
-        }
-      </style>
-      <path
-        d="M438.6 105.4c12.5 12.5 12.5 32.8 0 45.3l-256 256c-12.5 12.5-32.8 12.5-45.3 0l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0L160 338.7 393.4 105.4c12.5-12.5 32.8-12.5 45.3 0z"
-      />
-    </svg>
-    Active
-  </div>
-  {% else %}
-  <button
-    class="inline-flex items-center rounded-md bg-indigo-600 px-4 py-2 leading-6 text-white transition duration-150 ease-in-out [&.htmx-request]:cursor-not-allowed [&.htmx-request]:bg-gray-500"
-    hx-patch="/checkout/{{branch}}"
-  >
-    <svg
-      class="htmx-indicator -ml-1 mr-3 h-5 w-5 animate-spin text-white"
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
-    >
-      <circle
-        class="opacity-25"
-        cx="12"
-        cy="12"
-        r="10"
-        stroke="currentColor"
-        stroke-width="4"
-      ></circle>
-      <path
-        class="opacity-75"
-        fill="currentColor"
-        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-      ></path>
-    </svg>
-    Checkout
-  </button>
-  {% endif %} {% endfor %}
+    <div><a href="/log/{{ branch }}">{{ branch }}</a></div>
+    {% if branch == current_branch.as_str() %}
+      <div
+        class="inline-flex items-center rounded-md bg-green-600 px-4 py-2 leading-6 text-white"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          height="1em"
+          viewBox="0 0 448 512"
+          class="-ml-1 mr-3 h-5 w-5 text-white"
+        >
+          <style>
+            svg {
+              fill: #ffffff;
+            }
+          </style>
+          <path
+            d="M438.6 105.4c12.5 12.5 12.5 32.8 0 45.3l-256 256c-12.5 12.5-32.8 12.5-45.3 0l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0L160 338.7 393.4 105.4c12.5-12.5 32.8-12.5 45.3 0z"
+          />
+        </svg>
+        Active
+      </div>
+    {% else %}
+      <button
+        class="inline-flex items-center rounded-md bg-indigo-600 px-4 py-2 leading-6 text-white transition duration-150 ease-in-out [&.htmx-request]:cursor-not-allowed [&.htmx-request]:bg-gray-500"
+        hx-patch="/checkout/{{ branch }}"
+      >
+        <svg
+          class="htmx-indicator -ml-1 mr-3 h-5 w-5 animate-spin text-white"
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+        >
+          <circle
+            class="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            stroke-width="4"
+          ></circle>
+          <path
+            class="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+          ></path>
+        </svg>
+        Checkout
+      </button>
+    {% endif %}
+  {% endfor %}
 </div>
