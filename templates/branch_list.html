@@ -9,7 +9,15 @@
   class="grid grid-cols-[minmax(0,1fr)_120px] items-center gap-1"
 >
   {% for branch in branches %}
-    <div><a href="/log/refs/heads/{{ branch }}">{{ branch }}</a></div>
+    <div
+      hx-boost="true"
+      hx-target="#log-list"
+      hx-swap="innerHTML"
+      hx-select="#log-list"
+    >
+      <a href="/log/refs/heads/{{ branch }}">{{ branch }}</a>
+    </div>
+
     {% if branch == current_branch.as_str() %}
       <div
         class="inline-flex items-center rounded-md bg-green-600 px-4 py-2 leading-6 text-white"
