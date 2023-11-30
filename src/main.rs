@@ -4,6 +4,7 @@ use std::{net::SocketAddr, sync::Mutex};
 
 use askama::Template;
 use axum::extract::{Path, Query};
+use axum::response::Redirect;
 use axum::routing::patch;
 use axum::{
     extract::State,
@@ -20,25 +21,10 @@ struct AppState {
     repo: GitWrapper,
 }
 
-#[derive(Template)]
-#[template(path = "index.html")]
-struct IndexTemplate {
-    current_branch: String,
-    branches: Vec<String>,
-    remotes: Vec<String>,
-}
-
 async fn index(State(state): State<Arc<Mutex<AppState>>>) -> impl IntoResponse {
     let repo = &state.lock().unwrap().repo;
-    let branches = repo.list_local_branches();
-    let remotes = repo.list_remotes().unwrap();
     let current_branch = repo.get_current_branch().unwrap();
-    let template = IndexTemplate {
-        current_branch,
-        branches,
-        remotes,
-    };
-    HtmlTemplate(template)
+    Redirect::to(&format!("/log/refs/heads/{}", current_branch))
 }
 
 #[derive(Template)]
