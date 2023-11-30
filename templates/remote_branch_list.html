@@ -45,7 +45,9 @@
   </button>
   {% if open %}
     {% for branch in branches %}
-      <div>{{ branch }}</div>
+      <div>
+        <a href="/log/refs/remotes/{{ remote }}/{{ branch }}">{{ branch }}</a>
+      </div>
     {% endfor %}
   {% endif %}
 </div>

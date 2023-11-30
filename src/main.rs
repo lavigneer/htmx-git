@@ -54,14 +54,14 @@ struct LogTemplate {
 
 async fn log(
     State(state): State<Arc<Mutex<AppState>>>,
-    Path(branch): Path<String>,
+    Path(reference): Path<String>,
     Query(params): Query<HashMap<String, String>>,
 ) -> impl IntoResponse {
     let repo = &state.lock().unwrap().repo;
     let current_branch = repo.get_current_branch().unwrap();
 
     let filter = params.get("filter").map(|f| f.as_str());
-    let commits = repo.list_commits(&branch, filter);
+    let commits = repo.list_commits(&reference, filter);
     let page: usize = match params.get("page") {
         Some(s) => s.parse().unwrap_or(0),
         None => 0,
@@ -137,12 +137,6 @@ async fn remote_branch_list(
     HtmlTemplate(template)
 }
 
-// #[derive(Template)]
-// #[template(path = "remote_list.html")]
-// struct RemoteListTemplate {
-//     remotes: Vec<String>,
-// }
-
 #[tokio::main]
 async fn main() {
     tracing_subscriber::registry()
@@ -159,7 +153,7 @@ async fn main() {
     let assets_path = std::env::current_dir().unwrap();
     let app = Router::new()
         .route("/", get(index))
-        .route("/log/*branch", get(log))
+        .route("/log/*reference", get(log))
         .route("/remote/branches/*remote", get(remote_branch_list))
         .route("/checkout/*branch", patch(checkout_branch))
         .with_state(shared_state)

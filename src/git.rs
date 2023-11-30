@@ -82,11 +82,10 @@ impl GitWrapper {
 
     pub fn list_commits<'a>(
         &'a self,
-        branch: &str,
+        reference: &str,
         filter: Option<&'a str>,
     ) -> impl Iterator<Item = Commit> + 'a {
-        let branch_ref = &format!("refs/heads/{}", branch);
-        let obj = self.repo.revparse_single(branch_ref).unwrap();
+        let obj = self.repo.revparse_single(reference).unwrap();
         let mut revwalk = self.repo.revwalk().unwrap();
         revwalk.set_sorting(git2::Sort::TOPOLOGICAL).unwrap();
         revwalk.push(obj.id()).unwrap();
