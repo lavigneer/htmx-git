@@ -1,6 +1,9 @@
+use std::fmt::Display;
+
+use chrono::{FixedOffset, NaiveDateTime};
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
-use git2::{BranchType, Repository};
+use git2::{BranchType, Repository, Time};
 use itertools::Itertools;
 
 pub struct GitWrapper {
@@ -8,9 +11,27 @@ pub struct GitWrapper {
 }
 
 #[derive(Eq, PartialEq)]
+pub struct CommitDate(Time);
+
+impl Display for CommitDate {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let offset = FixedOffset::east_opt(self.0.offset_minutes() * 60).ok_or(std::fmt::Error)?;
+        let date_time =
+            NaiveDateTime::from_timestamp_opt(self.0.seconds(), 0).ok_or(std::fmt::Error)?;
+        let date_time = date_time
+            .and_local_timezone(offset)
+            .single()
+            .ok_or(std::fmt::Error)?;
+        write!(f, "{}", date_time.to_rfc2822())
+    }
+}
+
+#[derive(Eq, PartialEq)]
 pub struct Commit {
     pub id: String,
     pub message: String,
+    pub author: String,
+    pub date: CommitDate,
     sort_score: i64,
 }
 
@@ -102,6 +123,8 @@ impl GitWrapper {
                             Some(Commit {
                                 id: id.to_string(),
                                 message,
+                                author: commit.author().to_string(),
+                                date: CommitDate(commit.time()),
                                 sort_score: score,
                             })
                         });
@@ -109,21 +132,15 @@ impl GitWrapper {
                     (None, Ok(commit)) => Some(Commit {
                         id: id.to_string(),
                         message: commit.message().unwrap_or("UNKNOWN").to_owned(),
+                        author: commit.author().to_string(),
+                        date: CommitDate(commit.time()),
                         sort_score: 0,
                     }),
                     (Some(_), Err(_err)) => None,
-                    (None, Err(_err)) => Some(Commit {
-                        id: id.to_string(),
-                        message: "Error Finding Commit".to_owned(),
-                        sort_score: 0,
-                    }),
+                    (None, Err(_err)) => None,
                 },
                 (Some(_), Err(_err)) => None,
-                (None, Err(_err)) => Some(Commit {
-                    id: "".to_owned(),
-                    message: "Error Finding Commit".to_owned(),
-                    sort_score: 0,
-                }),
+                (None, Err(_err)) => None,
             })
             .sorted()
     }

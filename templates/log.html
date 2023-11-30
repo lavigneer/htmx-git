@@ -42,6 +42,16 @@
             >
               Message
             </th>
+            <th
+              class="border border-slate-300 p-4 text-left font-semibold text-slate-900"
+            >
+              Date
+            </th>
+            <th
+              class="border border-slate-300 p-4 text-left font-semibold text-slate-900"
+            >
+              Author
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -55,6 +65,18 @@
               </td>
               <td class="break-words border border-slate-300 p-4">
                 {{ commit.message }}
+              </td>
+              <td
+                class="overflow-hidden overflow-ellipsis border border-slate-300 p-4"
+                title="{{ commit.date }}"
+              >
+                {{ commit.date }}
+              </td>
+              <td
+                class="overflow-hidden overflow-ellipsis border border-slate-300 p-4"
+                title="{{ commit.author }}"
+              >
+                {{ commit.author }}
               </td>
             </tr>
           {% endfor %}
