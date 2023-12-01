@@ -70,7 +70,7 @@ impl GitWrapper {
             .into_iter()
             .filter_map(|b| match b.ok()?.0.name() {
                 Ok(Some(name)) => Some(name.to_owned()),
-                _ => None
+                _ => None,
             })
             .collect::<Vec<String>>())
     }
@@ -115,33 +115,35 @@ impl GitWrapper {
         revwalk.push(obj.id())?;
 
         let matcher = SkimMatcherV2::default();
-        Ok(revwalk
-            .filter_map(move |id| match id {
-                Ok(id) => match (filter, self.repo.find_commit(id)) {
-                    (Some(filter), Ok(commit)) => {
-                        let message = commit.message().unwrap_or("UNKNOWN").to_owned();
-                        let score = matcher.fuzzy_match(&message, &filter);
-                        return score.and_then(|score| {
-                            Some(Commit {
-                                id: id.to_string(),
-                                message,
-                                author: commit.author().to_string(),
-                                date: CommitDate(commit.time()),
-                                sort_score: score,
-                            })
-                        });
-                    }
-                    (None, Ok(commit)) => Some(Commit {
-                        id: id.to_string(),
-                        message: commit.message().unwrap_or("UNKNOWN").to_owned(),
-                        author: commit.author().to_string(),
-                        date: CommitDate(commit.time()),
-                        sort_score: 0,
-                    }),
-                    _ => None,
-                },
+        let result = revwalk.filter_map(move |id| match id {
+            Ok(id) => match (filter, self.repo.find_commit(id)) {
+                (Some(filter), Ok(commit)) => {
+                    let message = commit.message().unwrap_or("UNKNOWN").to_owned();
+                    let score = matcher.fuzzy_match(&message, &filter);
+                    return score.and_then(|score| {
+                        Some(Commit {
+                            id: id.to_string(),
+                            message,
+                            author: commit.author().to_string(),
+                            date: CommitDate(commit.time()),
+                            sort_score: score,
+                        })
+                    });
+                }
+                (None, Ok(commit)) => Some(Commit {
+                    id: id.to_string(),
+                    message: commit.message().unwrap_or("UNKNOWN").to_owned(),
+                    author: commit.author().to_string(),
+                    date: CommitDate(commit.time()),
+                    sort_score: 0,
+                }),
                 _ => None,
-            })
-            .sorted())
+            },
+            _ => None,
+        });
+        match filter{
+            Some(_)=> Ok(itertools::Either::Right(result.sorted())),
+            None => Ok(itertools::Either::Left(result))
+        }
     }
 }

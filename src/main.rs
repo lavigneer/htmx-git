@@ -52,7 +52,10 @@ async fn log(
         .repo;
     let current_branch = repo.get_current_branch()?;
 
-    let filter = params.get("filter").map(|f| f.as_str());
+    let filter = params.get("filter").and_then(|f| match f.is_empty() {
+        true => None,
+        false => Some(f.as_str()),
+    });
     let commits = repo.list_commits(&reference, filter);
     let page: usize = match params.get("page") {
         Some(s) => s.parse().unwrap_or(0),
