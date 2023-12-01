@@ -1,5 +1,6 @@
 use std::fmt::Display;
 
+use anyhow::Result;
 use chrono::{FixedOffset, NaiveDateTime};
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
@@ -62,14 +63,16 @@ impl GitWrapper {
             .to_owned())
     }
 
-    pub fn list_local_branches(&self) -> Vec<String> {
-        self.repo
-            .branches(Some(BranchType::Local))
-            .unwrap()
+    pub fn list_local_branches(&self) -> Result<Vec<String>> {
+        Ok(self
+            .repo
+            .branches(Some(BranchType::Local))?
             .into_iter()
-            // TODO: Fix all this unwrapping
-            .map(|b| b.unwrap().0.name().unwrap().unwrap().to_owned())
-            .collect::<Vec<String>>()
+            .filter_map(|b| match b.ok()?.0.name() {
+                Ok(Some(name)) => Some(name.to_owned()),
+                _ => None
+            })
+            .collect::<Vec<String>>())
     }
 
     pub fn list_remotes(&self) -> Result<Vec<String>, git2::Error> {
@@ -83,7 +86,7 @@ impl GitWrapper {
 
     pub fn list_remote_branches(&self, remote: &str) -> Result<Vec<String>, git2::Error> {
         let mut remote = self.repo.find_remote(remote)?;
-        remote.connect(git2::Direction::Fetch).unwrap();
+        remote.connect(git2::Direction::Fetch)?;
         Ok(remote
             .list()?
             .into_iter()
@@ -95,7 +98,7 @@ impl GitWrapper {
 
     pub fn checkout_local_branch(&self, branch: &str) -> Result<(), git2::Error> {
         let branch_ref = &format!("refs/heads/{}", branch);
-        let obj = self.repo.revparse_single(branch_ref).unwrap();
+        let obj = self.repo.revparse_single(branch_ref)?;
         let _ = self.repo.checkout_tree(&obj, None)?;
         let _ = self.repo.set_head(branch_ref)?;
         Ok(())
@@ -105,17 +108,16 @@ impl GitWrapper {
         &'a self,
         reference: &str,
         filter: Option<&'a str>,
-    ) -> impl Iterator<Item = Commit> + 'a {
-        let obj = self.repo.revparse_single(reference).unwrap();
-        let mut revwalk = self.repo.revwalk().unwrap();
-        revwalk.set_sorting(git2::Sort::TOPOLOGICAL).unwrap();
-        revwalk.push(obj.id()).unwrap();
+    ) -> Result<impl Iterator<Item = Commit> + 'a> {
+        let obj = self.repo.revparse_single(reference)?;
+        let mut revwalk = self.repo.revwalk()?;
+        revwalk.set_sorting(git2::Sort::TOPOLOGICAL)?;
+        revwalk.push(obj.id())?;
 
         let matcher = SkimMatcherV2::default();
-        revwalk
-            .into_iter()
-            .filter_map(move |id| match (filter, id) {
-                (_, Ok(id)) => match (filter, self.repo.find_commit(id)) {
+        Ok(revwalk
+            .filter_map(move |id| match id {
+                Ok(id) => match (filter, self.repo.find_commit(id)) {
                     (Some(filter), Ok(commit)) => {
                         let message = commit.message().unwrap_or("UNKNOWN").to_owned();
                         let score = matcher.fuzzy_match(&message, &filter);
@@ -136,12 +138,10 @@ impl GitWrapper {
                         date: CommitDate(commit.time()),
                         sort_score: 0,
                     }),
-                    (Some(_), Err(_err)) => None,
-                    (None, Err(_err)) => None,
+                    _ => None,
                 },
-                (Some(_), Err(_err)) => None,
-                (None, Err(_err)) => None,
+                _ => None,
             })
-            .sorted()
+            .sorted())
     }
 }

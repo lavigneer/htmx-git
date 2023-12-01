@@ -21,10 +21,13 @@ struct AppState {
     repo: GitWrapper,
 }
 
-async fn index(State(state): State<Arc<Mutex<AppState>>>) -> impl IntoResponse {
-    let repo = &state.lock().unwrap().repo;
-    let current_branch = repo.get_current_branch().unwrap();
-    Redirect::to(&format!("/log/refs/heads/{}", current_branch))
+async fn index(State(state): State<Arc<Mutex<AppState>>>) -> Result<impl IntoResponse, AppError> {
+    let repo = &state
+        .lock()
+        .map_err(|_| anyhow::anyhow!("Could not get reference to repo"))?
+        .repo;
+    let current_branch = repo.get_current_branch()?;
+    Ok(Redirect::to(&format!("/log/refs/heads/{}", current_branch)))
 }
 
 #[derive(Template)]
@@ -42,9 +45,12 @@ async fn log(
     State(state): State<Arc<Mutex<AppState>>>,
     Path(reference): Path<String>,
     Query(params): Query<HashMap<String, String>>,
-) -> impl IntoResponse {
-    let repo = &state.lock().unwrap().repo;
-    let current_branch = repo.get_current_branch().unwrap();
+) -> Result<impl IntoResponse, AppError> {
+    let repo = &state
+        .lock()
+        .map_err(|_| anyhow::anyhow!("Could not get reference to repo"))?
+        .repo;
+    let current_branch = repo.get_current_branch()?;
 
     let filter = params.get("filter").map(|f| f.as_str());
     let commits = repo.list_commits(&reference, filter);
@@ -52,10 +58,10 @@ async fn log(
         Some(s) => s.parse().unwrap_or(0),
         None => 0,
     };
-    let commits = commits.skip(page * 100).take(100).collect::<Vec<Commit>>();
+    let commits = commits?.skip(page * 100).take(100).collect::<Vec<Commit>>();
 
-    let remotes = repo.list_remotes().unwrap();
-    let branches = repo.list_local_branches();
+    let remotes = repo.list_remotes()?;
+    let branches = repo.list_local_branches()?;
     let template = LogTemplate {
         commits,
         current_branch,
@@ -67,7 +73,7 @@ async fn log(
             Some(filter) => filter.to_string(),
         },
     };
-    HtmlTemplate(template)
+    Ok(HtmlTemplate(template))
 }
 
 #[derive(Template)]
@@ -80,17 +86,20 @@ struct BranchListTemplate {
 async fn checkout_branch(
     State(state): State<Arc<Mutex<AppState>>>,
     Path(branch): Path<String>,
-) -> impl IntoResponse {
-    let repo = &state.lock().unwrap().repo;
-    repo.checkout_local_branch(&branch).unwrap();
-    let branches = repo.list_local_branches();
-    let current_branch = repo.get_current_branch().unwrap();
+) -> Result<impl IntoResponse, AppError> {
+    let repo = &state
+        .lock()
+        .map_err(|_| anyhow::anyhow!("Could not get reference to repo"))?
+        .repo;
+    repo.checkout_local_branch(&branch)?;
+    let branches = repo.list_local_branches()?;
+    let current_branch = repo.get_current_branch()?;
     let template = BranchListTemplate {
         current_branch,
         branches,
         out_of_band: true,
     };
-    HtmlTemplate(template)
+    Ok(HtmlTemplate(template))
 }
 
 #[derive(Template)]
@@ -104,13 +113,16 @@ async fn remote_branch_list(
     State(state): State<Arc<Mutex<AppState>>>,
     Path(remote): Path<String>,
     Query(params): Query<HashMap<String, String>>,
-) -> impl IntoResponse {
+) -> Result<impl IntoResponse, AppError> {
     let open = params
         .get("open")
         .unwrap_or(&"false".to_string())
         .parse::<bool>()
         .unwrap_or(true);
-    let repo = &state.lock().unwrap().repo;
+    let repo = &state
+        .lock()
+        .map_err(|_| anyhow::anyhow!("Could not get reference to repo"))?
+        .repo;
     let branches = match open {
         true => repo.list_remote_branches(&remote).unwrap(),
         false => vec![],
@@ -120,7 +132,7 @@ async fn remote_branch_list(
         remote,
         open,
     };
-    HtmlTemplate(template)
+    Ok(HtmlTemplate(template))
 }
 
 #[tokio::main]
@@ -170,5 +182,30 @@ where
             )
                 .into_response(),
         }
+    }
+}
+
+// Make our own error that wraps `anyhow::Error`.
+struct AppError(anyhow::Error);
+
+// Tell axum how to convert `AppError` into a response.
+impl IntoResponse for AppError {
+    fn into_response(self) -> Response {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Something went wrong: {}", self.0),
+        )
+            .into_response()
+    }
+}
+
+// This enables using `?` on functions that return `Result<_, anyhow::Error>` to turn them into
+// `Result<_, AppError>`. That way you don't need to do that manually.
+impl<E> From<E> for AppError
+where
+    E: Into<anyhow::Error>,
+{
+    fn from(err: E) -> Self {
+        Self(err.into())
     }
 }
