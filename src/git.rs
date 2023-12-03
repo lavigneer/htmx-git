@@ -4,7 +4,7 @@ use anyhow::Result;
 use chrono::{FixedOffset, NaiveDateTime};
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
-use git2::{BranchType, Delta, DiffFormat, DiffLineType, Repository, Time};
+use git2::{BranchType, Delta, DiffFormat, DiffLineType, DiffOptions, Repository, Time};
 use itertools::Itertools;
 
 pub struct GitWrapper {
@@ -129,7 +129,11 @@ impl GitWrapper {
         })
     }
 
-    pub fn commit_diff(&self, sha: &str) -> Result<Vec<DiffFileItem>, git2::Error> {
+    pub fn commit_diff(
+        &self,
+        sha: &str,
+        ignore_whitespace: bool,
+    ) -> Result<Vec<DiffFileItem>, git2::Error> {
         let commit = self.repo.find_commit(git2::Oid::from_str(sha)?)?;
         let commit_tree = commit.tree()?;
         let commit_parent = commit
@@ -137,9 +141,13 @@ impl GitWrapper {
             .next()
             .ok_or(git2::Error::from_str("Could not find parent commit."))?;
         let commit_parent_tree = commit_parent.tree()?;
-        let diff =
-            self.repo
-                .diff_tree_to_tree(Some(&commit_parent_tree), Some(&commit_tree), None)?;
+        let mut diff_options = DiffOptions::new();
+        diff_options.ignore_whitespace(ignore_whitespace);
+        let diff = self.repo.diff_tree_to_tree(
+            Some(&commit_parent_tree),
+            Some(&commit_tree),
+            Some(&mut diff_options),
+        )?;
 
         let mut result = Vec::new();
         diff.print(DiffFormat::Patch, |delta, _hunk, line| {

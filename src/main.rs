@@ -144,19 +144,30 @@ async fn remote_branch_list(
 struct ViewCommitTemplate {
     diffs: Vec<DiffFileItem>,
     commit: Commit,
+    whitespace_ignored: bool,
 }
 
 async fn view_commit(
     State(state): State<Arc<Mutex<AppState>>>,
     Path(sha): Path<String>,
+    Query(params): Query<HashMap<String, String>>,
 ) -> Result<impl IntoResponse, AppError> {
+    let ignore_whitespace = params
+        .get("ignore_whitespace")
+        .unwrap_or(&"false".to_string())
+        .parse::<bool>()
+        .unwrap_or(false);
     let repo = &state
         .lock()
         .map_err(|_| anyhow::anyhow!("Could not get reference to repo"))?
         .repo;
     let commit = repo.find_commit(&sha)?;
-    let diffs = repo.commit_diff(&sha)?;
-    let template = ViewCommitTemplate { diffs, commit };
+    let diffs = repo.commit_diff(&sha, ignore_whitespace)?;
+    let template = ViewCommitTemplate {
+        diffs,
+        commit,
+        whitespace_ignored: ignore_whitespace,
+    };
     Ok(HtmlTemplate(template))
 }
 
