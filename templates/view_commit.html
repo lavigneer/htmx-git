@@ -1,47 +1,61 @@
 {% extends "base.html" %}
 {% block content %}
-  <table class="w-full p-4">
-    <tbody class="table-auto font-mono">
-      {% for diff in diffs %}
-        <tr
-          class="{% match diff.operation %}
-            {% when DiffLineOperation::Addition %}bg-emerald-300{% when DiffLineOperation::Deletion %}bg-rose-200{% when DiffLineOperation::AddEOF %}bg-emerald-300{% when DiffLineOperation::RemoveEOF %}bg-rose-200{% when _ %}
-          {% endmatch %}"
-        >
-          <td
-            class="{% match diff.operation %}
-              {% when DiffLineOperation::Addition %}backdrop-brightness-75{% when DiffLineOperation::Deletion %}backdrop-brightness-75{% when DiffLineOperation::AddEOF %}backdrop-brightness-75{% when DiffLineOperation::RemoveEOF %}backdrop-brightness-75{% when _ %}
-            {% endmatch %} text-gray-900"
-          >
-            {% match diff.old_line_number %}
-              {% when Some with (n) %}
-              {{ n }}
-              {% when None %}
-            {% endmatch %}
-          </td>
-          <td
-            class="{% match diff.operation %}
-              {% when DiffLineOperation::Addition %}backdrop-brightness-75{% when DiffLineOperation::Deletion %}backdrop-brightness-75{% when DiffLineOperation::AddEOF %}backdrop-brightness-75{% when DiffLineOperation::RemoveEOF %}backdrop-brightness-75{% when _ %}
-            {% endmatch %} text-gray-900"
-          >
-            {% match diff.new_line_number %}
-              {% when Some with (n) %}
-              {{ n }}
-              {% when None %}
-            {% endmatch %}
-          </td>
-          <td class="px-2 text-gray-900">
-            {% match diff.operation %}
-              {% when DiffLineOperation::Addition %}
-              + {% when DiffLineOperation::Deletion %} -
-              {% when DiffLineOperation::ContextEOF %} =
-              {% when DiffLineOperation::AddEOF %} >
-              {% when DiffLineOperation::RemoveEOF %} < {% when _ %}
-            {% endmatch %}
-          </td>
-          <td class="whitespace-pre">{{ diff.content }}</td>
-        </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  {% for file in diffs %}
+    <div class="m-8 rounded-md border-2 border-slate-400">
+      <table class="w-full ">
+        <tbody class="table-auto font-mono">
+          <tr class="bg-slate-200 sticky top-0 z-50">
+            <td colspan="4" class="whitespace-pre">{{ file.file_diff.content }}</td>
+          </tr>
+          {% for hunk in file.hunks %}
+            <tr class="bg-sky-300">
+              <td colspan="2" class="backdrop-brightness-75" />
+              <td />
+              <td>{{ hunk.hunk_diff.content }}</td>
+            </tr>
+            {% for diff in hunk.lines %}
+              <tr
+                class="{% match diff.operation %}
+                  {% when DiffLineType::Addition %}bg-emerald-300{% when DiffLineType::Deletion %}bg-rose-200{% when DiffLineType::AddEOFNL %}bg-emerald-300{% when DiffLineType::DeleteEOFNL %}bg-rose-200{% when _ %}
+                {% endmatch %}"
+              >
+                <td
+                  class="{% match diff.operation %}
+                    {% when DiffLineType::Addition %}backdrop-brightness-75{% when DiffLineType::Deletion %}backdrop-brightness-75{% when DiffLineType::AddEOFNL %}backdrop-brightness-75{% when DiffLineType::DeleteEOFNL %}backdrop-brightness-75{% when _ %}
+                  {% endmatch %} text-gray-900"
+                >
+                  {% match diff.old_line_number %}
+                    {% when Some with (n) %}
+                    {{ n }}
+                    {% when None %}
+                  {% endmatch %}
+                </td>
+                <td
+                  class="{% match diff.operation %}
+                    {% when DiffLineType::Addition %}backdrop-brightness-75{% when DiffLineType::Deletion %}backdrop-brightness-75{% when DiffLineType::AddEOFNL %}backdrop-brightness-75{% when DiffLineType::DeleteEOFNL %}backdrop-brightness-75{% when _ %}
+                  {% endmatch %} text-gray-900"
+                >
+                  {% match diff.new_line_number %}
+                    {% when Some with (n) %}
+                    {{ n }}
+                    {% when None %}
+                  {% endmatch %}
+                </td>
+                <td class="px-2 text-gray-900">
+                  {% match diff.operation %}
+                    {% when DiffLineType::Addition %}
+                    + {% when DiffLineType::Deletion %} -
+                    {% when DiffLineType::ContextEOFNL %} =
+                    {% when DiffLineType::AddEOFNL %} >
+                    {% when DiffLineType::DeleteEOFNL %} < {% when _ %}
+                  {% endmatch %}
+                </td>
+                <td class="whitespace-pre">{{ diff.content }}</td>
+              </tr>
+            {% endfor %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endfor %}
 {% endblock %}

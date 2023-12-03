@@ -13,7 +13,8 @@ use axum::{
     routing::get,
     Router,
 };
-use htmx_git_client::git::{Commit, GitWrapper, DiffLineData, DiffLineOperation};
+use htmx_git_client::git::{Commit, GitWrapper, DiffLineData, DiffFileItem};
+use git2::DiffLineType;
 use tower_http::services::ServeDir;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -141,7 +142,7 @@ async fn remote_branch_list(
 #[derive(Template)]
 #[template(path = "view_commit.html")]
 struct ViewCommitTemplate {
-    diffs: Vec<DiffLineData>,
+    diffs: Vec<DiffFileItem>,
 }
 
 async fn view_commit(

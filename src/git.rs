@@ -1,10 +1,10 @@
-use std::fmt::Display;
+use std::{fmt::Display, vec};
 
 use anyhow::Result;
 use chrono::{FixedOffset, NaiveDateTime};
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
-use git2::{BranchType, DiffFormat, Repository, Time};
+use git2::{BranchType, Delta, DiffFormat, DiffLineType, Repository, Time};
 use itertools::Itertools;
 
 pub struct GitWrapper {
@@ -50,21 +50,19 @@ impl Ord for Commit {
 
 pub struct DiffLineData {
     pub content: String,
-    pub operation: DiffLineOperation,
+    pub operation: DiffLineType,
     pub old_line_number: Option<u32>,
     pub new_line_number: Option<u32>,
 }
 
-pub enum DiffLineOperation {
-    Context,
-    Addition,
-    Deletion,
-    ContextEOF,
-    AddEOF,
-    RemoveEOF,
-    FileHeader,
-    HunkHeader,
-    Binary,
+pub struct DiffHunkItem {
+    pub hunk_diff: DiffLineData,
+    pub lines: Vec<DiffLineData>,
+}
+
+pub struct DiffFileItem {
+    pub file_diff: DiffLineData,
+    pub hunks: Vec<DiffHunkItem>,
 }
 
 impl GitWrapper {
@@ -115,7 +113,7 @@ impl GitWrapper {
             .collect())
     }
 
-    pub fn commit_diff(&self, sha: &str) -> Result<Vec<DiffLineData>, git2::Error> {
+    pub fn commit_diff(&self, sha: &str) -> Result<Vec<DiffFileItem>, git2::Error> {
         let commit = self.repo.find_commit(git2::Oid::from_str(sha)?)?;
         let commit_tree = commit.tree()?;
         let commit_parent = commit
@@ -128,29 +126,73 @@ impl GitWrapper {
                 .diff_tree_to_tree(Some(&commit_parent_tree), Some(&commit_tree), None)?;
 
         let mut result = Vec::new();
-        diff.print(DiffFormat::Patch, |_delta, _hunk, line| {
-            let content = std::str::from_utf8(line.content())
-                .unwrap()
-                .trim_end()
-                .to_string();
+        diff.print(DiffFormat::Patch, |delta, _hunk, line| {
+            let content = match line.origin_value() {
+                DiffLineType::FileHeader => {
+                    let old_file = delta.old_file();
+                    let new_file = delta.new_file();
+                    match delta.status() {
+                        Delta::Added => format!("[Added] {}", new_file.path().unwrap().display()),
+                        Delta::Copied => format!(
+                            "[Copied] {} -> {}",
+                            old_file.path().unwrap().display(),
+                            new_file.path().unwrap().display()
+                        ),
+                        Delta::Deleted => {
+                            format!("[Deleted] {}", old_file.path().unwrap().display())
+                        }
+                        Delta::Renamed => format!(
+                            "[Renamed] {} -> {}",
+                            old_file.path().unwrap().display(),
+                            new_file.path().unwrap().display()
+                        ),
+                        Delta::Modified => {
+                            format!("[Modified] {}", new_file.path().unwrap().display())
+                        }
+                        Delta::Ignored => {
+                            format!("[Ignored] {}", new_file.path().unwrap().display())
+                        }
+                        Delta::Conflicted => {
+                            format!("[Conflicted] {}", new_file.path().unwrap().display())
+                        }
+                        _ => new_file.path().unwrap().display().to_string(),
+                    }
+                }
+                _ => std::str::from_utf8(line.content())
+                    .unwrap()
+                    .trim_end()
+                    .to_string(),
+            };
+
             result.push(DiffLineData {
                 content,
-                operation: match line.origin() {
-                    '+' => DiffLineOperation::Addition,
-                    '-' => DiffLineOperation::Deletion,
-                    '=' => DiffLineOperation::Context,
-                    '>' => DiffLineOperation::AddEOF,
-                    '<' => DiffLineOperation::RemoveEOF,
-                    'F' => DiffLineOperation::FileHeader,
-                    'H' => DiffLineOperation::HunkHeader,
-                    'B' => DiffLineOperation::Binary,
-                    _ => DiffLineOperation::Context,
-                },
+                operation: line.origin_value(),
                 old_line_number: line.old_lineno(),
                 new_line_number: line.new_lineno(),
             });
             true
         })?;
+        let result = result.into_iter().fold(vec![], |mut acc, l| {
+            match l.operation {
+                DiffLineType::FileHeader => acc.push(DiffFileItem {
+                    file_diff: l,
+                    hunks: vec![],
+                }),
+                DiffLineType::HunkHeader => acc.last_mut().unwrap().hunks.push(DiffHunkItem {
+                    hunk_diff: l,
+                    lines: vec![],
+                }),
+                _ => acc
+                    .last_mut()
+                    .unwrap()
+                    .hunks
+                    .last_mut()
+                    .unwrap()
+                    .lines
+                    .push(l),
+            }
+            acc
+        });
         Ok(result)
     }
 
