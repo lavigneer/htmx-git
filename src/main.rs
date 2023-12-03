@@ -13,8 +13,8 @@ use axum::{
     routing::get,
     Router,
 };
-use htmx_git_client::git::{Commit, GitWrapper, DiffLineData, DiffFileItem};
 use git2::DiffLineType;
+use htmx_git_client::git::{Commit, DiffFileItem, GitWrapper};
 use tower_http::services::ServeDir;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -143,6 +143,7 @@ async fn remote_branch_list(
 #[template(path = "view_commit.html")]
 struct ViewCommitTemplate {
     diffs: Vec<DiffFileItem>,
+    commit: Commit,
 }
 
 async fn view_commit(
@@ -153,8 +154,9 @@ async fn view_commit(
         .lock()
         .map_err(|_| anyhow::anyhow!("Could not get reference to repo"))?
         .repo;
+    let commit = repo.find_commit(&sha)?;
     let diffs = repo.commit_diff(&sha)?;
-    let template = ViewCommitTemplate { diffs };
+    let template = ViewCommitTemplate { diffs, commit };
     Ok(HtmlTemplate(template))
 }
 

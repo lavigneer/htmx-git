@@ -1,11 +1,35 @@
 {% extends "base.html" %}
 {% block content %}
+  <div class="m-8 rounded-md border-2 border-slate-400">
+    <div class="bg-slate-200 p-3">
+      <div class="whitespace-pre text-lg">
+        {%- match commit.summary -%}
+          {%- when Some with (summary) -%}
+          {{ summary }}
+          {%- when None -%}
+        {%- endmatch -%}
+      </div>
+      <div class="whitespace-pre bg-slate-200">
+        {%- match commit.body -%}
+          {%- when Some with (body) -%}
+          {{ body }}
+          {%- when None -%}
+        {%- endmatch -%}
+      </div>
+    </div>
+    <div class="p-3">
+      <div>{{ commit.author }} </div>
+      <div>{{ commit.date }}</div>
+    </div>
+  </div>
   {% for file in diffs %}
     <div class="m-8 rounded-md border-2 border-slate-400">
       <table class="w-full ">
         <tbody class="table-auto font-mono">
-          <tr class="bg-slate-200 sticky top-0 z-50">
-            <td colspan="4" class="whitespace-pre">{{ file.file_diff.content }}</td>
+          <tr class="sticky top-0 z-50 bg-slate-200">
+            <td colspan="4" class="whitespace-pre"
+              >{{ file.file_diff.content }}</td
+            >
           </tr>
           {% for hunk in file.hunks %}
             <tr class="bg-sky-300">

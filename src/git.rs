@@ -30,10 +30,11 @@ impl Display for CommitDate {
 #[derive(Eq, PartialEq)]
 pub struct Commit {
     pub id: String,
-    pub message: String,
+    pub summary: Option<String>,
+    pub body: Option<String>,
     pub author: String,
     pub date: CommitDate,
-    sort_score: i64,
+    sort_score: Option<i64>,
 }
 
 impl PartialOrd for Commit {
@@ -111,6 +112,21 @@ impl GitWrapper {
             .filter(|head_name| head_name.starts_with("refs/heads/"))
             .map(|head_name| head_name.replace("refs/heads/", ""))
             .collect())
+    }
+
+    pub fn find_commit(&self, sha: &str) -> Result<Commit, git2::Error> {
+        let commit = self.repo.find_commit(git2::Oid::from_str(sha)?)?;
+        let summary = commit.summary().map(|v| v.to_string());
+        let body = commit.body().map(|v| v.to_string());
+        let author = commit.author().to_string();
+        Ok(Commit {
+            id: commit.id().to_string(),
+            summary,
+            body,
+            author,
+            date: CommitDate(commit.time()),
+            sort_score: None,
+        })
     }
 
     pub fn commit_diff(&self, sha: &str) -> Result<Vec<DiffFileItem>, git2::Error> {
@@ -218,24 +234,31 @@ impl GitWrapper {
         let result = revwalk.filter_map(move |id| match id {
             Ok(id) => match (filter, self.repo.find_commit(id)) {
                 (Some(filter), Ok(commit)) => {
-                    let message = commit.message().unwrap_or("UNKNOWN").to_owned();
-                    let score = matcher.fuzzy_match(&message, &filter);
-                    return score.and_then(|score| {
+                    let message = commit.message().map(|v| v.to_string());
+                    let summary = commit.summary().map(|v| v.to_string());
+                    let body = commit.body().map(|v| v.to_string());
+                    let score = match message.clone() {
+                        Some(msg) => matcher.fuzzy_match(&msg, &filter),
+                        None => None,
+                    };
+                    return score.and_then(move |score| {
                         Some(Commit {
                             id: id.to_string(),
-                            message,
+                            summary,
+                            body,
                             author: commit.author().to_string(),
                             date: CommitDate(commit.time()),
-                            sort_score: score,
+                            sort_score: Some(score),
                         })
                     });
                 }
                 (None, Ok(commit)) => Some(Commit {
                     id: id.to_string(),
-                    message: commit.message().unwrap_or("UNKNOWN").to_owned(),
+                    summary: commit.summary().map(|v| v.to_string()),
+                    body: commit.body().map(|v| v.to_string()),
                     author: commit.author().to_string(),
                     date: CommitDate(commit.time()),
-                    sort_score: 0,
+                    sort_score: None,
                 }),
                 _ => None,
             },
