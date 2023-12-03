@@ -183,7 +183,7 @@ impl GitWrapper {
                     }
                 }
                 _ => std::str::from_utf8(line.content())
-                    .unwrap()
+                    .unwrap_or("FAILED TO PARSE")
                     .trim_end()
                     .to_string(),
             };
@@ -206,6 +206,7 @@ impl GitWrapper {
                     hunk_diff: l,
                     lines: vec![],
                 }),
+                DiffLineType::Binary => (),
                 _ => acc
                     .last_mut()
                     .unwrap()
