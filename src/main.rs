@@ -171,6 +171,28 @@ async fn view_commit(
     Ok(HtmlTemplate(template))
 }
 
+#[derive(Template)]
+#[template(path = "view_commit_file.html")]
+struct ViewCommitFileTemplate {
+    content: String,
+}
+
+async fn view_commit_file(
+    State(state): State<Arc<Mutex<AppState>>>,
+    Path((sha, path)): Path<(String, String)>,
+) -> Result<impl IntoResponse, AppError> {
+    let repo = &state
+        .lock()
+        .map_err(|_| anyhow::anyhow!("Could not get reference to repo"))?
+        .repo;
+    // let commit = repo.find_commit(&sha)?;
+    let commit_file_content = repo.commit_file_content(&sha, &path)?;
+    let template = ViewCommitFileTemplate {
+        content: commit_file_content,
+    };
+    Ok(HtmlTemplate(template))
+}
+
 #[tokio::main]
 async fn main() {
     tracing_subscriber::registry()
@@ -190,7 +212,8 @@ async fn main() {
         .route("/log/*reference", get(log))
         .route("/remote/branches/*remote", get(remote_branch_list))
         .route("/checkout/*branch", patch(checkout_branch))
-        .route("/commit/*sha", get(view_commit))
+        .route("/commit/:sha/file/*path", get(view_commit_file))
+        .route("/commit/:sha", get(view_commit))
         .with_state(shared_state)
         .nest_service(
             "/assets",

@@ -51,6 +51,7 @@ impl Ord for Commit {
 
 pub struct DiffLineData {
     pub content: String,
+    pub file_path: Option<String>,
     pub operation: DiffLineType,
     pub old_line_number: Option<u32>,
     pub new_line_number: Option<u32>,
@@ -187,9 +188,14 @@ impl GitWrapper {
                     .trim_end()
                     .to_string(),
             };
+            let file_path = match line.origin_value() {
+                DiffLineType::FileHeader => delta.new_file().path().map(|p| p.to_str().unwrap_or("").to_owned()),
+                _ => None,
+            };
 
             result.push(DiffLineData {
                 content,
+                file_path,
                 operation: line.origin_value(),
                 old_line_number: line.old_lineno(),
                 new_line_number: line.new_lineno(),
@@ -219,6 +225,19 @@ impl GitWrapper {
             acc
         });
         Ok(result)
+    }
+
+    pub fn commit_file_content(&self, sha: &str, path: &str) -> Result<String, git2::Error> {
+        let commit = self.repo.find_commit(git2::Oid::from_str(sha)?)?;
+        let tree = commit.tree()?;
+        let entry = tree.get_path(&std::path::Path::new(path))?;
+        let obj = entry.to_object(&self.repo)?;
+        let blob = obj
+            .as_blob()
+            .ok_or(git2::Error::from_str("Unable to get blob from object"))?;
+        let content = std::str::from_utf8(blob.content())
+            .or(Err(git2::Error::from_str("Unable to get blob content")))?;
+        Ok(content.to_string())
     }
 
     pub fn checkout_local_branch(&self, branch: &str) -> Result<(), git2::Error> {

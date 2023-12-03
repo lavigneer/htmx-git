@@ -1,10 +1,27 @@
 {% extends "base.html" %}
 {% block content %}
-  <div class="m-8 rounded-md border-2 border-slate-400">
-    <div class="bg-slate-200 p-3">
-      <div class="float-right" hx-boost="true" hx-replace-url="true">
+  <div class="m-6 rounded-md border-2 border-slate-400">
+    <div class="flex bg-slate-200 p-3">
+      <div class="flex-grow">
+        <div class="whitespace-pre text-lg">
+          {%- match commit.summary -%}
+            {%- when Some with (summary) -%}
+            {{ summary }}
+            {%- when None -%}
+          {%- endmatch -%}
+        </div>
+        <div class="whitespace-pre bg-slate-200">
+          {%- match commit.body -%}
+            {%- when Some with (body) -%}
+            {{ body }}
+            {%- when None -%}
+          {%- endmatch -%}
+        </div>
+      </div>
+      <div class="flex-none" hx-boost="true" hx-replace-url="true">
         {%- if whitespace_ignored -%}
-          <button class="rounded-md border border-slate-300 bg-slate-300 p-2 hover:bg-slate-400"
+          <button
+            class="rounded-md border border-slate-300 bg-slate-300 p-2 hover:bg-slate-400"
             ><a href="/commit/{{ commit.id }}?ignore_whitespace=false"
               >Whitespace</a
             ></button
@@ -24,26 +41,13 @@
               >Whitespace</a
             ></button
           >
-          <button class="rounded-md border border-slate-300 bg-slate-300 p-2 hover:bg-slate-400"
+          <button
+            class="rounded-md border border-slate-300 bg-slate-300 p-2 hover:bg-slate-400"
             ><a href="/commit/{{ commit.id }}?ignore_whitespace=true"
               >Ignore Whitespace</a
             ></button
           >
         {%- endif -%}
-      </div>
-      <div class="whitespace-pre text-lg">
-        {%- match commit.summary -%}
-          {%- when Some with (summary) -%}
-          {{ summary }}
-          {%- when None -%}
-        {%- endmatch -%}
-      </div>
-      <div class="whitespace-pre bg-slate-200">
-        {%- match commit.body -%}
-          {%- when Some with (body) -%}
-          {{ body }}
-          {%- when None -%}
-        {%- endmatch -%}
       </div>
     </div>
     <div class="p-3">
@@ -52,12 +56,19 @@
     </div>
   </div>
   {% for file in diffs %}
-    <div class="m-8 rounded-md border-2 border-slate-400">
+    <div class="m-6 rounded-md border-2 border-slate-400">
       <table class="w-full ">
         <tbody class="table-auto font-mono">
           <tr class="sticky top-0 z-50 bg-slate-200">
             <td colspan="4" class="whitespace-pre"
-              >{{ file.file_diff.content }}</td
+              ><a
+                href="/commit/{{ commit.id }}/file/{%- match file.file_diff.file_path -%}
+                  {%- when Some with (n) -%}
+                  {{ n }}
+                  {%- when None -%}
+                {%- endmatch -%}"
+                >{{ file.file_diff.content }}</a
+              ></td
             >
           </tr>
           {% for hunk in file.hunks %}
