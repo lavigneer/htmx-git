@@ -61,7 +61,7 @@
                 class="overflow-hidden overflow-ellipsis border border-slate-300 p-4"
                 title="{{ commit.id }}"
               >
-                {{ commit.id }}
+                <a href="/commit/{{ commit.id }}">{{ commit.id }}</a>
               </td>
               <td class="break-words border border-slate-300 p-4">
                 {{ commit.message }}

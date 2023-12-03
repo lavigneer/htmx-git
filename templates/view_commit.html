@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block content %}
+  <div class="p-4">
+    {% for diff in diffs %}
+      {% match diff %}
+        {% when DiffLine::Context with (s) %}
+        <div class="whitespace-pre font-mono">{{ s }}</div>
+        {% when DiffLine::Addition with (s) %}
+        <div class="whitespace-pre bg-emerald-500 font-mono">{{ s }}</div>
+        {% when DiffLine::Deletion with (s) %}
+        <div class="whitespace-pre bg-rose-400 font-mono">{{ s }}</div>
+        {% when DiffLine::ContextEOF with (s) %}
+        <div class="whitespace-pre font-mono">{{ s }}</div>
+        {% when DiffLine::AddEOF with (s) %}
+        <div class="whitespace-pre bg-emerald-500 font-mono">{{ s }}</div>
+        {% when DiffLine::RemoveEOF with (s) %}
+        <div class="whitespace-pre bg-rose-400 font-mono">{{ s }}</div>
+        {% when DiffLine::FileHeader with (s) %}
+        <div class="whitespace-pre font-mono">{{ s }}</div>
+        {% when DiffLine::HunkHeader with (s) %}
+        <div class="whitespace-pre font-mono">{{ s }}</div>
+        {% when DiffLine::Binary with (s) %}
+        <div class="whitespace-pre font-mono">{{ s }}</div>
+      {% endmatch %}
+    {% endfor %}
+  </div>
+{% endblock %}

@@ -4,7 +4,7 @@ use anyhow::Result;
 use chrono::{FixedOffset, NaiveDateTime};
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
-use git2::{BranchType, Repository, Time};
+use git2::{BranchType, DiffFormat, Repository, Time};
 use itertools::Itertools;
 
 pub struct GitWrapper {
@@ -46,6 +46,18 @@ impl Ord for Commit {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.sort_score.cmp(&other.sort_score)
     }
+}
+
+pub enum DiffLine {
+    Context(String),
+    Addition(String),
+    Deletion(String),
+    ContextEOF(String),
+    AddEOF(String),
+    RemoveEOF(String),
+    FileHeader(String),
+    HunkHeader(String),
+    Binary(String),
 }
 
 impl GitWrapper {
@@ -96,6 +108,37 @@ impl GitWrapper {
             .collect())
     }
 
+    pub fn commit_diff(&self, sha: &str) -> Result<Vec<DiffLine>, git2::Error> {
+        let commit = self.repo.find_commit(git2::Oid::from_str(sha)?)?;
+        let commit_tree = commit.tree()?;
+        let commit_parent = commit
+            .parents()
+            .next()
+            .ok_or(git2::Error::from_str("Could not find parent commit."))?;
+        let commit_parent_tree = commit_parent.tree()?;
+        let diff =
+            self.repo
+                .diff_tree_to_tree(Some(&commit_parent_tree), Some(&commit_tree), None)?;
+
+        let mut result = Vec::new();
+        diff.print(DiffFormat::Patch, |_delta, _hunk, line| {
+            let str = std::str::from_utf8(line.content()).unwrap().to_string();
+            result.push(match line.origin() {
+                '+' => DiffLine::Addition(str),
+                '-' => DiffLine::Deletion(str),
+                '=' => DiffLine::Context(str),
+                '>' => DiffLine::AddEOF(str),
+                '<' => DiffLine::RemoveEOF(str),
+                'F' => DiffLine::FileHeader(str),
+                'H' => DiffLine::HunkHeader(str),
+                'B' => DiffLine::Binary(str),
+                _ => DiffLine::Context(str),
+            });
+            true
+        })?;
+        Ok(result)
+    }
+
     pub fn checkout_local_branch(&self, branch: &str) -> Result<(), git2::Error> {
         let branch_ref = &format!("refs/heads/{}", branch);
         let obj = self.repo.revparse_single(branch_ref)?;
@@ -141,9 +184,9 @@ impl GitWrapper {
             },
             _ => None,
         });
-        match filter{
-            Some(_)=> Ok(itertools::Either::Right(result.sorted())),
-            None => Ok(itertools::Either::Left(result))
+        match filter {
+            Some(_) => Ok(itertools::Either::Right(result.sorted())),
+            None => Ok(itertools::Either::Left(result)),
         }
     }
 }

@@ -13,7 +13,8 @@ use axum::{
     routing::get,
     Router,
 };
-use htmx_git_client::git::{Commit, GitWrapper};
+use git2::DiffFormat;
+use htmx_git_client::git::{Commit, GitWrapper, DiffLine};
 use tower_http::services::ServeDir;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -138,6 +139,25 @@ async fn remote_branch_list(
     Ok(HtmlTemplate(template))
 }
 
+#[derive(Template)]
+#[template(path = "view_commit.html")]
+struct ViewCommitTemplate {
+    diffs: Vec<DiffLine>,
+}
+
+async fn view_commit(
+    State(state): State<Arc<Mutex<AppState>>>,
+    Path(sha): Path<String>,
+) -> Result<impl IntoResponse, AppError> {
+    let repo = &state
+        .lock()
+        .map_err(|_| anyhow::anyhow!("Could not get reference to repo"))?
+        .repo;
+    let diffs = repo.commit_diff(&sha)?;
+    let template = ViewCommitTemplate { diffs };
+    Ok(HtmlTemplate(template))
+}
+
 #[tokio::main]
 async fn main() {
     tracing_subscriber::registry()
@@ -157,6 +177,7 @@ async fn main() {
         .route("/log/*reference", get(log))
         .route("/remote/branches/*remote", get(remote_branch_list))
         .route("/checkout/*branch", patch(checkout_branch))
+        .route("/commit/*sha", get(view_commit))
         .with_state(shared_state)
         .nest_service(
             "/assets",
