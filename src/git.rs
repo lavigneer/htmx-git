@@ -48,16 +48,23 @@ impl Ord for Commit {
     }
 }
 
-pub enum DiffLine {
-    Context(String),
-    Addition(String),
-    Deletion(String),
-    ContextEOF(String),
-    AddEOF(String),
-    RemoveEOF(String),
-    FileHeader(String),
-    HunkHeader(String),
-    Binary(String),
+pub struct DiffLineData {
+    pub content: String,
+    pub operation: DiffLineOperation,
+    pub old_line_number: Option<u32>,
+    pub new_line_number: Option<u32>,
+}
+
+pub enum DiffLineOperation {
+    Context,
+    Addition,
+    Deletion,
+    ContextEOF,
+    AddEOF,
+    RemoveEOF,
+    FileHeader,
+    HunkHeader,
+    Binary,
 }
 
 impl GitWrapper {
@@ -108,7 +115,7 @@ impl GitWrapper {
             .collect())
     }
 
-    pub fn commit_diff(&self, sha: &str) -> Result<Vec<DiffLine>, git2::Error> {
+    pub fn commit_diff(&self, sha: &str) -> Result<Vec<DiffLineData>, git2::Error> {
         let commit = self.repo.find_commit(git2::Oid::from_str(sha)?)?;
         let commit_tree = commit.tree()?;
         let commit_parent = commit
@@ -122,17 +129,25 @@ impl GitWrapper {
 
         let mut result = Vec::new();
         diff.print(DiffFormat::Patch, |_delta, _hunk, line| {
-            let str = std::str::from_utf8(line.content()).unwrap().to_string();
-            result.push(match line.origin() {
-                '+' => DiffLine::Addition(str),
-                '-' => DiffLine::Deletion(str),
-                '=' => DiffLine::Context(str),
-                '>' => DiffLine::AddEOF(str),
-                '<' => DiffLine::RemoveEOF(str),
-                'F' => DiffLine::FileHeader(str),
-                'H' => DiffLine::HunkHeader(str),
-                'B' => DiffLine::Binary(str),
-                _ => DiffLine::Context(str),
+            let content = std::str::from_utf8(line.content())
+                .unwrap()
+                .trim_end()
+                .to_string();
+            result.push(DiffLineData {
+                content,
+                operation: match line.origin() {
+                    '+' => DiffLineOperation::Addition,
+                    '-' => DiffLineOperation::Deletion,
+                    '=' => DiffLineOperation::Context,
+                    '>' => DiffLineOperation::AddEOF,
+                    '<' => DiffLineOperation::RemoveEOF,
+                    'F' => DiffLineOperation::FileHeader,
+                    'H' => DiffLineOperation::HunkHeader,
+                    'B' => DiffLineOperation::Binary,
+                    _ => DiffLineOperation::Context,
+                },
+                old_line_number: line.old_lineno(),
+                new_line_number: line.new_lineno(),
             });
             true
         })?;
