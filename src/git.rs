@@ -73,6 +73,10 @@ impl GitWrapper {
         Ok(Self { repo })
     }
 
+    pub fn inner(&self) -> &Repository {
+        &self.repo
+    }
+
     pub fn get_current_branch(&self) -> Result<String, git2::Error> {
         Ok(self
             .repo
@@ -189,7 +193,10 @@ impl GitWrapper {
                     .to_string(),
             };
             let file_path = match line.origin_value() {
-                DiffLineType::FileHeader => delta.new_file().path().map(|p| p.to_str().unwrap_or("").to_owned()),
+                DiffLineType::FileHeader => delta
+                    .new_file()
+                    .path()
+                    .map(|p| p.to_str().unwrap_or("").to_owned()),
                 _ => None,
             };
 

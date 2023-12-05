@@ -22,13 +22,34 @@ struct AppState {
     repo: GitWrapper,
 }
 
+#[derive(Template)]
+#[template(path = "index.html")]
+struct IndexTemplate<'a> {
+    readme_content: &'a str,
+}
 async fn index(State(state): State<Arc<Mutex<AppState>>>) -> Result<impl IntoResponse, AppError> {
     let repo = &state
         .lock()
         .map_err(|_| anyhow::anyhow!("Could not get reference to repo"))?
         .repo;
-    let current_branch = repo.get_current_branch()?;
-    Ok(Redirect::to(&format!("/log/refs/heads/{}", current_branch)))
+    let inner_repo = repo.inner();
+
+    let head = inner_repo.head()?;
+    let commit = head.peel_to_commit()?;
+    let readme_content = repo
+        .commit_file_content(&commit.id().to_string(), "README.md")
+        .unwrap_or("".to_string());
+    let template = IndexTemplate {
+        readme_content: &readme_content,
+    };
+    match template.render() {
+        Ok(html) => Ok(Html(html).into_response()),
+        Err(err) => Ok((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to render template. Error: {err}"),
+        )
+            .into_response()),
+    }
 }
 
 #[derive(Template)]
