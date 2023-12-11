@@ -2,8 +2,5 @@
 {% block content %}
   <div class="md:container md:mx-auto">
     {% include "view_commit_file_list_partial.html" %}
-    <div class="rounded-md border p-4">
-      <article class="prose max-w-none">{{ readme_content|markdown }}</article>
-    </div>
   </div>
 {% endblock %}

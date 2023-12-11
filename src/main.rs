@@ -4,7 +4,6 @@ use std::{net::SocketAddr, sync::Mutex};
 
 use askama::Template;
 use axum::extract::{Path, Query};
-use axum::response::Redirect;
 use axum::routing::patch;
 use axum::{
     extract::State,
@@ -13,8 +12,8 @@ use axum::{
     routing::get,
     Router,
 };
-use git2::DiffLineType;
-use htmx_git_client::git::{Commit, DiffFileItem, GitWrapper};
+use git2::{DiffLineType, ObjectType};
+use htmx_git_client::git::{Commit, CommitFile, DiffFileItem, GitWrapper};
 use tower_http::services::ServeDir;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -23,9 +22,20 @@ struct AppState {
 }
 
 #[derive(Template)]
+#[template(path = "view_commit_file_list.html")]
+struct CommitFileListTemplate {
+    commit_tree: Vec<CommitFile>,
+    commit_id: String,
+    path: String
+}
+
+#[derive(Template)]
 #[template(path = "index.html")]
 struct IndexTemplate<'a> {
     readme_content: &'a str,
+    commit_tree: Vec<CommitFile>,
+    commit_id: String,
+    path: String
 }
 async fn index(State(state): State<Arc<Mutex<AppState>>>) -> Result<impl IntoResponse, AppError> {
     let repo = &state
@@ -35,12 +45,17 @@ async fn index(State(state): State<Arc<Mutex<AppState>>>) -> Result<impl IntoRes
     let inner_repo = repo.inner();
 
     let head = inner_repo.head()?;
+    let commit_id = head.peel_to_commit()?.id().to_string();
     let commit = head.peel_to_commit()?;
     let readme_content = repo
         .commit_file_content(&commit.id().to_string(), "README.md")
         .unwrap_or("".to_string());
+    let commit_tree = repo.get_file_list_for_commit(&commit.id().to_string(), None)?;
     let template = IndexTemplate {
         readme_content: &readme_content,
+        commit_tree,
+        commit_id,
+        path: "".to_string()
     };
     match template.render() {
         Ok(html) => Ok(Html(html).into_response()),
@@ -206,12 +221,42 @@ async fn view_commit_file(
         .lock()
         .map_err(|_| anyhow::anyhow!("Could not get reference to repo"))?
         .repo;
-    // let commit = repo.find_commit(&sha)?;
-    let commit_file_content = repo.commit_file_content(&sha, &path)?;
-    let template = ViewCommitFileTemplate {
-        content: commit_file_content,
-    };
-    Ok(HtmlTemplate(template))
+    let commit = repo.inner().find_commit(git2::Oid::from_str(&sha)?)?;
+    let tree = commit.tree()?;
+    let entry = tree.get_path(&std::path::Path::new(&path))?;
+    match entry.kind() {
+        Some(ObjectType::Tree) => {
+            let commit_tree = repo.get_file_list_for_commit(&sha, Some(&path))?;
+            match (CommitFileListTemplate {
+                commit_id: sha,
+                commit_tree,
+                path: format!("{}/", path)
+            })
+            .render()
+            {
+                Ok(html) => Ok(Html(html).into_response()),
+                Err(err) => Ok((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("Failed to render template. Error: {err}"),
+                )
+                    .into_response()),
+            }
+        }
+        _ => {
+            let commit_file_content = repo.commit_file_content(&sha, &path)?;
+            let template = ViewCommitFileTemplate {
+                content: commit_file_content,
+            };
+            match template.render() {
+                Ok(html) => Ok(Html(html).into_response()),
+                Err(err) => Ok((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("Failed to render template. Error: {err}"),
+                )
+                    .into_response()),
+            }
+        }
+    }
 }
 
 #[tokio::main]

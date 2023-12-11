@@ -4,7 +4,9 @@ use anyhow::Result;
 use chrono::{FixedOffset, NaiveDateTime};
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
-use git2::{BranchType, Delta, DiffFormat, DiffLineType, DiffOptions, Repository, Time};
+use git2::{
+    BranchType, Delta, DiffFormat, DiffLineType, DiffOptions, ObjectType, Oid, Repository, Time,
+};
 use itertools::Itertools;
 
 pub struct GitWrapper {
@@ -67,6 +69,13 @@ pub struct DiffFileItem {
     pub hunks: Vec<DiffHunkItem>,
 }
 
+pub struct CommitFile {
+    pub id: Oid,
+    pub name: Option<String>,
+    pub kind: Option<ObjectType>,
+    pub filemode: i32,
+}
+
 impl GitWrapper {
     pub fn new(repo: &str) -> Result<Self, git2::Error> {
         let repo = Repository::open(repo)?;
@@ -82,7 +91,7 @@ impl GitWrapper {
             .repo
             .head()?
             .shorthand()
-            .ok_or(git2::Error::from_str("Ihvalid utf-8 branch name"))?
+            .ok_or(git2::Error::from_str("Invalid utf-8 branch name"))?
             .to_owned())
     }
 
@@ -245,6 +254,42 @@ impl GitWrapper {
         let content = std::str::from_utf8(blob.content())
             .or(Err(git2::Error::from_str("Unable to get blob content")))?;
         Ok(content.to_string())
+    }
+
+    pub fn commit_file_tree(&self, sha: &str) -> Result<git2::Tree, git2::Error> {
+        let commit = self.repo.find_commit(git2::Oid::from_str(sha)?)?;
+        commit.tree()
+    }
+
+    pub fn get_file_list_for_commit(
+        &self,
+        sha: &str,
+        path: Option<&str>,
+    ) -> Result<Vec<CommitFile>, git2::Error> {
+        let commit = self.repo.find_commit(git2::Oid::from_str(sha)?)?;
+        let tree = commit.tree()?;
+        let obj = match path {
+            Some(path) => tree
+                .get_path(&std::path::Path::new(path))?
+                .to_object(&self.repo)?,
+            None => tree.into_object(),
+        };
+        let mut file_list = obj
+            .into_tree()
+            .map_err(|_| git2::Error::from_str("Could not get tree"))?
+            .iter()
+            .map(|t| CommitFile {
+                id: t.id(),
+                name: t.name().map(|t| t.to_string()),
+                kind: t.kind(),
+                filemode: t.filemode(),
+            })
+            .collect_vec();
+        file_list.sort_by_key(|f| match f.kind {
+            Some(ObjectType::Tree) => 0,
+            _ => 1,
+        });
+        Ok(file_list)
     }
 
     pub fn checkout_local_branch(&self, branch: &str) -> Result<(), git2::Error> {
