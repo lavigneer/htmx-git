@@ -24,3 +24,9 @@ tmp/
 
 # .env file
 .env
+
+# Added by pnpm
+/node_modules
+
+# Git repo we are going to test with
+/test-repo

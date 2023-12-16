@@ -1,27 +1,25 @@
 package server
 
 import (
-	"encoding/json"
-	"log"
+	"html/template"
 	"net/http"
 )
 
+var templates = template.Must(template.ParseGlob("templates/*.tmpl.html"))
+
 func (s *Server) RegisterRoutes() http.Handler {
+	assetsHandler := http.StripPrefix("/assets/", http.FileServer(http.Dir("assets")))
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", s.HelloWorldHandler)
+	mux.Handle("/assets/", assetsHandler)
+	mux.HandleFunc("/", s.IndexHandler)
 
 	return mux
 }
 
-func (s *Server) HelloWorldHandler(w http.ResponseWriter, r *http.Request) {
-	resp := make(map[string]string)
-	resp["message"] = "Hello World"
-
-	jsonResp, err := json.Marshal(resp)
+func (s *Server) IndexHandler(w http.ResponseWriter, r *http.Request) {
+	err := templates.ExecuteTemplate(w, "index.tmpl.html", nil)
 	if err != nil {
-		log.Fatalf("error handling JSON marshal. Err: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
-
-	_, _ = w.Write(jsonResp)
 }
