@@ -3,6 +3,7 @@ module github.com/lavigneer/htmx-git
 go 1.21.5
 
 require (
+	github.com/go-chi/chi/v5 v5.0.10
 	github.com/go-git/go-git/v5 v5.11.0
 	github.com/gomarkdown/markdown v0.0.0-20231115200524-a660076da3fd
 	github.com/joho/godotenv v1.5.1

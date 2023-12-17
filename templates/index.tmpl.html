@@ -1,8 +1,8 @@
 {{ template "base" . }}
 {{ define "head" }}{{ end }}
 {{ define "content" }}
+  {{ template "filelist" . }}
   <div class="md:container md:mx-auto">
-    {{ template "filelist" . }}
     <div class="rounded-md border p-4">
       <article class="prose max-w-none">
         {{ .ReadmeContent }}
