@@ -1,7 +1,7 @@
 package tests
 
 import (
-	"htmx-git/internal/server"
+	"github.com/lavigneer/htmx-git/internal/server"
 	"io"
 	"net/http"
 	"net/http/httptest"

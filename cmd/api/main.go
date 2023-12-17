@@ -1,7 +1,7 @@
 package main
 
 import (
-	"htmx-git/internal/server"
+	"github.com/lavigneer/htmx-git/internal/server"
 )
 
 func main() {

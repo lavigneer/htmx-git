@@ -1,5 +1,11 @@
 {{ template "base" . }}
 {{ define "head" }}{{ end }}
 {{ define "content" }}
-  <div class="md:container md:mx-auto"></div>
+  <div class="md:container md:mx-auto">
+    <div class="rounded-md border p-4">
+      <article class="prose max-w-none">
+        {{.ReadmeContent}}
+      </article>
+    </div>
+  </div>
 {{ end }}

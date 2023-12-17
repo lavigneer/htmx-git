@@ -1,4 +1,4 @@
-# Project htmx-git
+# Project github.com/lavigneer/htmx-git
 
 One Paragraph of project description goes here
 
