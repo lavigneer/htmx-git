@@ -4,8 +4,11 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"sort"
 
 	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/gomarkdown/markdown"
 	"github.com/microcosm-cc/bluemonday"
 )
@@ -17,9 +20,13 @@ func (s *Server) RegisterRoutes() http.Handler {
 
 	mux := http.NewServeMux()
 	mux.Handle("/assets/", assetsHandler)
+	mux.HandleFunc("/commit/", s.CommitHandler)
 	mux.HandleFunc("/", s.IndexHandler)
 
 	return mux
+}
+
+func (s *Server) CommitHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) IndexHandler(w http.ResponseWriter, r *http.Request) {
@@ -68,12 +75,28 @@ func (s *Server) IndexHandler(w http.ResponseWriter, r *http.Request) {
 
 	readmeContentBytes := markdown.ToHTML([]byte(readmeContent), nil, nil)
 
+	treeEntries := tree.Entries
+	sort.Slice(treeEntries, func(i, j int) bool {
+		if treeEntries[i].Mode.IsFile() != treeEntries[j].Mode.IsFile() {
+			if treeEntries[i].Mode.IsFile() {
+				return false
+			}
+			return true
+		}
+		return treeEntries[i].Name < treeEntries[j].Name
+	})
+
 	data := struct {
 		ReadmeContent template.HTML
+		TreeEntries   []object.TreeEntry
+		Reference     *plumbing.Reference
+		Path          string
 	}{
 		ReadmeContent: template.HTML(bluemonday.UGCPolicy().SanitizeBytes(readmeContentBytes)),
+		TreeEntries:   tree.Entries,
+		Reference:     ref,
+		Path:          "",
 	}
-
 	err = templates.ExecuteTemplate(w, "index.tmpl.html", data)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

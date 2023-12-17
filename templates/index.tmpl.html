@@ -2,9 +2,10 @@
 {{ define "head" }}{{ end }}
 {{ define "content" }}
   <div class="md:container md:mx-auto">
+    {{ template "filelist" . }}
     <div class="rounded-md border p-4">
       <article class="prose max-w-none">
-        {{.ReadmeContent}}
+        {{ .ReadmeContent }}
       </article>
     </div>
   </div>
