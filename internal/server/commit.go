@@ -2,77 +2,61 @@ package server
 
 import (
 	"html/template"
-	"log"
 	"net/http"
 	"sort"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
+	"github.com/labstack/echo/v4"
 )
 
 var commitTemplates = template.Must(template.ParseFiles("templates/base.tmpl.html", "templates/filelist.tmpl.html"))
 var fileTemplates = template.Must(template.ParseFiles("templates/base.tmpl.html", "templates/file.tmpl.html"))
 
-func (s *Server) CommitHandler(w http.ResponseWriter, r *http.Request) {
-	sha := chi.URLParam(r, "sha")
-	path := chi.URLParam(r, "*")
+func (s *Server) CommitHandler(c echo.Context) error {
+	sha := c.Param("sha")
+	path := c.Param("*")
 
 	repo, err := git.PlainOpen("test-repo")
 	if err != nil {
-		log.Print("here")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return err
 	}
 	commitHash := plumbing.NewHash(sha)
 	commitIter, err := repo.Log(&git.LogOptions{From: commitHash})
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return err
 	}
 
 	commit, err := commitIter.Next()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return err
 	}
 
 	tree, err := commit.Tree()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return err
 	}
 
 	entryAtPath, err := tree.FindEntry(path)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return err
 	} else if entryAtPath.Mode.IsFile() {
 		file, err := tree.File(path)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+			return err
 		}
 		fileContent, err := file.Contents()
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+			return err
 		}
-		err = fileTemplates.ExecuteTemplate(w, "file.tmpl.html", fileContent)
-
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		return
+		return c.Render(http.StatusOK, "file", fileContent)
 
 	}
 
 	tree, err = tree.Tree(path)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return err
 	}
 	treeEntries := tree.Entries
 	sort.Slice(treeEntries, func(i, j int) bool {
@@ -94,9 +78,5 @@ func (s *Server) CommitHandler(w http.ResponseWriter, r *http.Request) {
 		CommitHash:  commitHash,
 		Path:        path + "/",
 	}
-	err = commitTemplates.ExecuteTemplate(w, "filelist.tmpl.html", data)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
+	return c.Render(http.StatusOK, "filelist", data)
 }
